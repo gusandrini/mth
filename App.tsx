@@ -8,7 +8,7 @@ import { ThemeProvider, useTheme } from '@/context/Theme';
 import Home from '@/screens/Home';
 import MotoPatio from '@/screens/MotoPatio';
 // import Beacons from '@/screens/Beacons';
-// import Mapa from '@/screens/Mapa';
+import Mapa from '@/screens/Mapa';
 import Config from '@/screens/Config';
 
 const Stack = createNativeStackNavigator();
@@ -21,8 +21,8 @@ function Routes() {
         {/* <Stack.Screen name="Login" component={Login} /> */}
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="MotoPatio" component={MotoPatio} />
-        {/* <Stack.Screen name="Beacons" component={Beacons} />
-        <Stack.Screen name="Mapa" component={Mapa} /> */}
+        {/* <Stack.Screen name="Beacons" component={Beacons} />*/}
+        <Stack.Screen name="Mapa" component={Mapa} /> 
         <Stack.Screen name="Config" component={Config} />
       </Stack.Navigator>
     </NavigationContainer>
