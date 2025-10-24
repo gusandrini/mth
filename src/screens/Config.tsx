@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/Theme';
+import Bar from '@/components/Bar';
 
 export default function Config() {
   const { colors, isDark, toggleTheme } = useTheme();
@@ -27,6 +28,7 @@ export default function Config() {
 
        
       </View>
+      <Bar />
     </View>
   );
 }
