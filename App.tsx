@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ThemeProvider, useTheme } from '@/context/Theme';
 
 // telas
-// import Login from '@/screens/Login';
+import Login from '@/screens/Login';
 import Home from '@/screens/Home';
 import MotoPatio from '@/screens/MotoPatio';
 import Beacons from '@/screens/Beacons';
@@ -18,7 +18,7 @@ function Routes() {
   return (
     <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {/* <Stack.Screen name="Login" component={Login} /> */}
+        <Stack.Screen name="Login" component={Login} />
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="MotoPatio" component={MotoPatio} />
         <Stack.Screen name="Beacons" component={Beacons} />

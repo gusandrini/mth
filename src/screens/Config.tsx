@@ -1,37 +1,72 @@
 import React from 'react';
-import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Switch, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/Theme';
 import AppLayout from '@/components/AppLayout';
 import { useSession } from '@/services/SessionProvider';
+import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import apiClient from '@/api/apiClient';
+
+const TOKEN_KEY = 'token';
+const USERNAME_KEY = 'username';
 
 export default function Config() {
   const { colors, isDark, toggleTheme } = useTheme();
+  const navigation = useNavigation();
   const s = getStyles(colors);
 
-  // -------- sessão opcional (fallback sem provider) --------
+  // tenta usar o SessionProvider, se não houver, roda no modo standalone
   let session: ReturnType<typeof useSession> | null = null;
   try {
     session = useSession();
   } catch {
-    session = null; // sem provider -> modo visualização
+    session = null;
   }
+
   const isAuthenticated = !!session?.isAuthenticated;
-  const user = session?.user ?? { nome: 'Usuário de Demonstração', email: 'demo@mottu.com' };
-  const logout = session?.logout ?? (async () => { /* noop no modo demo */ });
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Sair da conta',
+      'Tem certeza que deseja encerrar sua sessão?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Sair',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              if (session?.logout) {
+                await session.logout();
+              } else {
+                await AsyncStorage.multiRemove([TOKEN_KEY, USERNAME_KEY]);
+                delete (apiClient.defaults.headers.common as any).Authorization;
+              }
+              Alert.alert('Sessão encerrada', 'Você foi desconectado.');
+              navigation.reset({ index: 0, routes: [{ name: 'Login' as never }] });
+            } catch (e) {
+              console.error(e);
+              Alert.alert('Erro', 'Não foi possível sair da conta.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <AppLayout>
       <View style={s.container}>
         <Text style={s.title}>Configurações</Text>
 
-        {/* Preferências */}
+        {/* Bloco de tema */}
         <View style={s.card}>
-          <Text style={s.cardTitle}>Preferências</Text>
+          <Text style={s.cardTitle}>Tema</Text>
           <View style={s.row}>
             <View style={s.rowLeft}>
               <Ionicons name="moon-outline" size={18} color={colors.text} />
-              <Text style={[s.label, { marginLeft: 8 }]}>Tema Escuro</Text>
+              <Text style={[s.label, { marginLeft: 8 }]}>Modo Escuro</Text>
             </View>
             <Switch
               value={isDark}
@@ -42,30 +77,14 @@ export default function Config() {
           </View>
         </View>
 
-        {/* Dados */}
-        <View style={s.card}>
-          <Text style={s.cardTitle}>Dados</Text>
-
-          <View style={s.rowBetween}>
-            <Text style={s.smallLabel}>Nome</Text>
-            <Text style={s.value}>{user.nome}</Text>
-          </View>
-
-          <View style={s.rowBetween}>
-            <Text style={s.smallLabel}>E-mail</Text>
-            <Text style={s.value}>{user.email}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={[s.btnDanger, !isAuthenticated && { opacity: 0.5 }]}
-            onPress={logout}
-            disabled={!isAuthenticated}
-            accessibilityLabel="Sair"
-          >
-            <Ionicons name="log-out-outline" size={18} color="#fff" />
-            <Text style={s.btnDangerText}>{isAuthenticated ? 'Sair' : 'Sair (indisponível no modo demo)'}</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Botão de logout */}
+        <TouchableOpacity
+          style={[s.btnDanger, !isAuthenticated && { opacity: 0.6 }]}
+          onPress={handleLogout}
+        >
+          <Ionicons name="log-out-outline" size={18} color="#fff" />
+          <Text style={s.btnDangerText}>Sair</Text>
+        </TouchableOpacity>
       </View>
     </AppLayout>
   );
@@ -73,7 +92,12 @@ export default function Config() {
 
 function getStyles(colors: any) {
   return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, padding: 16, gap: 12 },
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+      padding: 16,
+      gap: 16,
+    },
     title: { color: colors.text, fontSize: 20, fontWeight: '800', marginBottom: 4 },
 
     card: {
@@ -88,20 +112,12 @@ function getStyles(colors: any) {
 
     row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     rowLeft: { flexDirection: 'row', alignItems: 'center' },
-    rowBetween: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingVertical: 2,
-    },
 
     label: { color: colors.text, fontSize: 14, fontWeight: '600' },
-    smallLabel: { color: colors.muted, fontSize: 12, fontWeight: '700' },
-    value: { color: colors.text, fontSize: 14, fontWeight: '700' },
 
     btnDanger: {
-      marginTop: 6,
-      height: 44,
+      marginTop: 12,
+      height: 48,
       borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
@@ -109,6 +125,6 @@ function getStyles(colors: any) {
       flexDirection: 'row',
       gap: 8,
     },
-    btnDangerText: { color: '#fff', fontWeight: '800' },
+    btnDangerText: { color: '#fff', fontWeight: '800', fontSize: 16 },
   });
 }

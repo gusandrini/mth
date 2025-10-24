@@ -1,132 +1,88 @@
-// src/services/SessionProvider.tsx
-import React, { createContext, useContext, useEffect, useMemo, useState, useCallback } from "react";
+import { createContext, PropsWithChildren, useContext, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as SecureStore from "expo-secure-store";
-import apiClient from "../api/apiClient"; 
+import apiClient from "../api/apiClient";
 
-// ---------- Tipos ----------
 interface User {
-  idFuncionario: number;
-  nome: string;
-  email: string;
-  cargo: string;
+  idFuncionario: number;          // inexistente no login atual → usamos 0
+  nome: string;                    // derivado do username
+  email: string;                   // se username for e-mail, usamos; senão deixamos vazio
+  cargo: string;                   // sem dado no login atual → "-"
 }
-type LoginResponse = {
-  token: string;
-  idFuncionario: number;
-  nome: string;
-  email: string;
-  cargo: string;
-};
-type LoginResult = { ok: true } | { ok: false; message?: string };
 
 interface SessionContextType {
   user: User | null;
   isAuthenticated: boolean;
-  isInitializing: boolean; // carregando sessão ao abrir app
-  login: (email: string, password: string) => Promise<LoginResult>;
+  login: (emailOrUsername: string, password: string) => Promise<boolean>;
   logout: () => Promise<void>;
 }
 
-// ---------- Helpers de storage (SecureStore com fallback) ----------
-const TOKEN_KEY = "token";
-const USER_ID_KEY = "userId";
-
-async function setItemSecure(key: string, value: string) {
-  try { await SecureStore.setItemAsync(key, value); }
-  catch { await AsyncStorage.setItem(key, value); }
-}
-async function getItemSecure(key: string) {
-  try { return await SecureStore.getItemAsync(key); }
-  catch { return await AsyncStorage.getItem(key); }
-}
-async function delItemSecure(key: string) {
-  try { await SecureStore.deleteItemAsync(key); }
-  catch { await AsyncStorage.removeItem(key); }
-}
-
-// ---------- Context ----------
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+const TOKEN_KEY = "token";
+const USERNAME_KEY = "username";
+
+/** Deriva um objeto User mínimo a partir do username/email */
+function buildUser(emailOrUsername: string): User {
+  const looksLikeEmail = emailOrUsername.includes("@");
+  const nomeBase = looksLikeEmail ? emailOrUsername.split("@")[0] : emailOrUsername;
+  const nome = nomeBase.charAt(0).toUpperCase() + nomeBase.slice(1);
+
+  return {
+    idFuncionario: 0,
+    nome,
+    email: looksLikeEmail ? emailOrUsername : "",
+    cargo: "-",
+  };
+}
+
+const SessionProvider = ({ children }: PropsWithChildren) => {
   const [user, setUser] = useState<User | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
 
-  // Anexa/remover Authorization header no axios
-  const setAuthHeader = useCallback((token?: string | null) => {
-    if (token) apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
-    else delete apiClient.defaults.headers.common.Authorization;
-  }, []);
-
-  // Boot: restaura token e busca /auth/me
-  useEffect(() => {
-    (async () => {
-      try {
-        const token = await getItemSecure(TOKEN_KEY);
-        if (!token) return;
-
-        setAuthHeader(token);
-        // se sua API tiver /auth/me, melhor buscar o usuário “fresco”
-        const { data } = await apiClient.get<User>("/auth/me");
-        setUser(data);
-        await setItemSecure(USER_ID_KEY, String(data.idFuncionario));
-      } catch (e) {
-        // token inválido/expirado: limpa tudo
-        await delItemSecure(TOKEN_KEY);
-        await delItemSecure(USER_ID_KEY);
-        setAuthHeader(null);
-        setUser(null);
-      } finally {
-        setIsInitializing(false);
-      }
-    })();
-  }, [setAuthHeader]);
-
-  const login = useCallback(async (email: string, password: string): Promise<LoginResult> => {
+  const login = async (emailOrUsername: string, password: string) => {
     try {
-      const { data } = await apiClient.post<LoginResponse>("/auth/login", { email, password });
-      const { token, idFuncionario, nome, email: userEmail, cargo } = data;
+      // 👉 seu backend atual: POST /api/auth/login { username, password }
+      const { data } = await apiClient.post("/api/auth/login", {
+        username: emailOrUsername,
+        password,
+      });
 
-      await setItemSecure(TOKEN_KEY, token);
-      await setItemSecure(USER_ID_KEY, String(idFuncionario));
-      setAuthHeader(token);
+      const token: string | undefined = data?.token;
+      if (!token) return false;
 
-      setUser({ idFuncionario, nome, email: userEmail, cargo });
-      return { ok: true };
+      await AsyncStorage.setItem(TOKEN_KEY, token);
+      await AsyncStorage.setItem(USERNAME_KEY, emailOrUsername);
+
+      // injeta o Authorization para as próximas requisições
+      (apiClient.defaults.headers.common as any).Authorization = `Bearer ${token}`;
+
+      // como a API ainda não devolve o usuário, criamos um “mínimo” para UI
+      setUser(buildUser(emailOrUsername));
+      return true;
     } catch (error: any) {
-      const status = error?.response?.status;
-      const message =
-        status === 401 ? "Credenciais inválidas." :
-        status >= 500 ? "Servidor indisponível." :
-        "Falha ao entrar.";
-      return { ok: false, message };
+      // 401 = credenciais inválidas
+      if (error?.response?.status === 401) return false;
+      console.error("Erro inesperado no login:", error?.response?.data || error);
+      return false;
     }
-  }, [setAuthHeader]);
+  };
 
-  const logout = useCallback(async () => {
-    try {
-      // opcional: await apiClient.post('/auth/logout')
-    } finally {
-      await delItemSecure(TOKEN_KEY);
-      await delItemSecure(USER_ID_KEY);
-      setAuthHeader(null);
-      setUser(null);
-    }
-  }, [setAuthHeader]);
+  const logout = async () => {
+    await AsyncStorage.multiRemove([TOKEN_KEY, USERNAME_KEY]);
+    delete (apiClient.defaults.headers.common as any).Authorization;
+    setUser(null);
+  };
 
-  const value = useMemo<SessionContextType>(() => ({
-    user,
-    isAuthenticated: !!user,
-    isInitializing,
-    login,
-    logout,
-  }), [user, isInitializing, login, logout]);
+  return (
+    <SessionContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+      {children}
+    </SessionContext.Provider>
+  );
+};
 
-  return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
-}
+const useSession = () => {
+  const context = useContext(SessionContext);
+  if (!context) throw new Error("useSession must be used within a SessionProvider");
+  return context;
+};
 
-export function useSession() {
-  const ctx = useContext(SessionContext);
-  if (!ctx) throw new Error("useSession must be used within a SessionProvider");
-  return ctx;
-}
+export { SessionProvider, useSession };
