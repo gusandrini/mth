@@ -55,16 +55,13 @@ export default function Home() {
         />
 
         <View style={s.mapResumeContainer}>
-          {/* Coluna esquerda */}
+          {/* Colunas*/}
           <View style={s.col}>
             <ZoneBar color={zonePalette[0]} label="Entrada (A)" colors={colors} />
-            <ZoneBar color={zonePalette[1]} label="Armazenamento (C)" colors={colors} />
-            <ZoneBar color={zonePalette[4]} label="Loja (E)" colors={colors} />
-          </View>
-          {/* Coluna direita */}
-          <View style={s.col}>
             <ZoneBar color={zonePalette[2]} label="Manutenção (B)" colors={colors} />
+            <ZoneBar color={zonePalette[1]} label="Armazenamento (C)" colors={colors} />
             <ZoneBar color={zonePalette[3]} label="Estacionamento (D)" colors={colors} />
+            <ZoneBar color={zonePalette[4]} label="Loja (E)" colors={colors} />
           </View>
         </View>
 
