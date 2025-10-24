@@ -8,7 +8,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
-import Bar from '@/components/Bar';
+import AppLayout from '@/components/AppLayout';
 import { useTheme } from '@/context/Theme';
 
 type RootStack = Record<string, object | undefined>;
@@ -29,66 +29,65 @@ export default function Home() {
   ];
 
   return (
-    <View style={s.screen}>
-      <ScrollView contentContainerStyle={s.content}>
-        {/* Header */}
-        <View style={s.header}>
-          <View>
-            <Text style={s.brand}>Mottooth</Text>
-            <Text style={s.subtitle}>Gestão de Pátio</Text>
+    <AppLayout>
+      <View style={s.screen}>
+        <ScrollView contentContainerStyle={s.content}>
+          {/* Header */}
+          <View style={s.header}>
+            <View>
+              <Text style={s.brand}>Mottooth</Text>
+              <Text style={s.subtitle}>Gestão de Pátio</Text>
+            </View>
           </View>
-        </View>
 
-        {/* KPI Cards */}
-        <View style={s.kpiRow}>
-          <KpiCard title="Motos no" highlight="Pátio" icon="bicycle-outline" colors={colors} />
-          <KpiCard title="Beacons" highlight="Ativos" icon="wifi-outline" align="right" colors={colors} />
-        </View>
-
-        {/* Resumo do Mapa */}
-        <SectionHeader
-          title="Resumo do Mapa"
-          rightAction="Ver Mapa >"
-          onPressRight={() => navigation.navigate('Mapa' as never)}
-          leftIcons={[{ name: 'grid-outline' as const }, { name: 'construct-outline' as const }, { name: 'bicycle-outline' as const }]}
-          colors={colors}
-        />
-
-        <View style={s.mapResumeContainer}>
-          {/* Colunas*/}
-          <View style={s.col}>
-            <ZoneBar color={zonePalette[0]} label="Entrada (A)" colors={colors} />
-            <ZoneBar color={zonePalette[2]} label="Manutenção (B)" colors={colors} />
-            <ZoneBar color={zonePalette[1]} label="Armazenamento (C)" colors={colors} />
-            <ZoneBar color={zonePalette[3]} label="Estacionamento (D)" colors={colors} />
-            <ZoneBar color={zonePalette[4]} label="Loja (E)" colors={colors} />
+          {/* KPI Cards */}
+          <View style={s.kpiRow}>
+            <KpiCard title="Motos no" highlight="Pátio" icon="bicycle-outline" colors={colors} />
+            <KpiCard title="Beacons" highlight="Ativos" icon="wifi-outline" align="right" colors={colors} />
           </View>
-        </View>
 
-        {/* Últimas motos */}
-        <SectionHeader
-          title="Últimas Motos Cadastradas"
-          rightAction="Ver Todas >"
-          onPressRight={() => navigation.navigate('MotoPatio' as never)}
-          colors={colors}
-        />
-        <EmptyState text="Nenhuma moto cadastrada ainda" colors={colors} />
+          {/* Resumo do Mapa */}
+          <SectionHeader
+            title="Resumo do Mapa"
+            rightAction="Ver Mapa >"
+            onPressRight={() => navigation.navigate('Mapa' as never)}
+            leftIcons={[{ name: 'grid-outline' as const }, { name: 'construct-outline' as const }, { name: 'bicycle-outline' as const }]}
+            colors={colors}
+          />
 
-        {/* Últimos Beacons */}
-        <SectionHeader
-          title="Últimos Beacons"
-          rightAction="Ver Todos >"
-          onPressRight={() => navigation.navigate('Beacons' as never)}
-          colors={colors}
-        />
-        <EmptyState text="Nenhum beacon cadastrado ainda" colors={colors} />
+          <View style={s.mapResumeContainer}>
+            {/* Colunas*/}
+            <View style={s.col}>
+              <ZoneBar color={zonePalette[0]} label="Entrada (A)" colors={colors} />
+              <ZoneBar color={zonePalette[2]} label="Manutenção (B)" colors={colors} />
+              <ZoneBar color={zonePalette[1]} label="Armazenamento (C)" colors={colors} />
+              <ZoneBar color={zonePalette[3]} label="Estacionamento (D)" colors={colors} />
+              <ZoneBar color={zonePalette[4]} label="Loja (E)" colors={colors} />
+            </View>
+          </View>
 
-        <View style={{ height: 16 }} />
-      </ScrollView>
+          {/* Últimas motos */}
+          <SectionHeader
+            title="Últimas Motos Cadastradas"
+            rightAction="Ver Todas >"
+            onPressRight={() => navigation.navigate('MotoPatio' as never)}
+            colors={colors}
+          />
+          <EmptyState text="Nenhuma moto cadastrada ainda" colors={colors} />
 
-      {/* Bottom bar fixa */}
-      <Bar />
-    </View>
+          {/* Últimos Beacons */}
+          <SectionHeader
+            title="Últimos Beacons"
+            rightAction="Ver Todos >"
+            onPressRight={() => navigation.navigate('Beacons' as never)}
+            colors={colors}
+          />
+          <EmptyState text="Nenhum beacon cadastrado ainda" colors={colors} />
+
+          <View style={{ height: 16 }} />
+        </ScrollView>
+      </View>
+    </AppLayout>
   );
 }
 

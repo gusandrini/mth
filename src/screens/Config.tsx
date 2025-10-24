@@ -1,35 +1,36 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/context/Theme';
-import Bar from '@/components/Bar';
+import AppLayout from '@/components/AppLayout';
 
 export default function Config() {
   const { colors, isDark, toggleTheme } = useTheme();
   const s = getStyles(colors);
 
   return (
-    <View style={s.container}>
-      <Text style={s.title}>Configurações</Text>
+    <AppLayout>
+      <View style={s.container}>
+        <Text style={s.title}>Configurações</Text>
 
-      {/* Bloco: Tema */}
-      <View style={s.card}>
-        <Text style={s.cardTitle}>Tema</Text>
+        {/* Bloco: Tema */}
+        <View style={s.card}>
+          <Text style={s.cardTitle}>Tema</Text>
 
-        {/* Alternar Dark/Light rápido */}
-        <View style={s.row}>
-          <Text style={s.label}>Modo escuro</Text>
-          <Switch
-            value={isDark}
-            onValueChange={toggleTheme}
-            trackColor={{ false: '#ccc', true: colors.primary }}
-            thumbColor={isDark ? '#fff' : '#fff'}
-          />
+          {/* Alternar Dark/Light rápido */}
+          <View style={s.row}>
+            <Text style={s.label}>Modo escuro</Text>
+            <Switch
+              value={isDark}
+              onValueChange={toggleTheme}
+              trackColor={{ false: '#ccc', true: colors.primary }}
+              thumbColor={isDark ? '#fff' : '#fff'}
+            />
+          </View>
+
+        
         </View>
-
-       
       </View>
-      <Bar />
-    </View>
+    </AppLayout>
   );
 }
 

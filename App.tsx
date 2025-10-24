@@ -31,7 +31,7 @@ function Routes() {
 
 export default function App() {
   return (
-    <ThemeProvider>
+    <ThemeProvider >
       <Routes />
     </ThemeProvider>
   );
