@@ -7,7 +7,7 @@ import { ThemeProvider, useTheme } from '@/context/Theme';
 // import Login from '@/screens/Login';
 import Home from '@/screens/Home';
 import MotoPatio from '@/screens/MotoPatio';
-// import Beacons from '@/screens/Beacons';
+import Beacons from '@/screens/Beacons';
 import Mapa from '@/screens/Mapa';
 import Config from '@/screens/Config';
 
@@ -21,7 +21,7 @@ function Routes() {
         {/* <Stack.Screen name="Login" component={Login} /> */}
         <Stack.Screen name="Home" component={Home} />
         <Stack.Screen name="MotoPatio" component={MotoPatio} />
-        {/* <Stack.Screen name="Beacons" component={Beacons} />*/}
+        <Stack.Screen name="Beacons" component={Beacons} />
         <Stack.Screen name="Mapa" component={Mapa} /> 
         <Stack.Screen name="Config" component={Config} />
       </Stack.Navigator>
