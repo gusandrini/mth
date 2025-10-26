@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,79 +6,179 @@ import {
   TextInput,
   TouchableOpacity,
   FlatList,
-  ListRenderItem,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/Theme';
 import AppLayout from '@/components/AppLayout';
+import api from '@/api/apiClient';
 
-type Bike = {
-  id: string;
-  model: string;
-  plate: string;
-  beacon?: string;
-  status: 'ativa' | 'inativa' | 'manutencao';
+type Moto = {
+  id: number;
+  placa: string;
+  clienteId: number;
+  modeloMotoId: number;
+  nomeCliente?: string | null;
+  modeloNome?: string | null;
+  fabricante?: string | null;
 };
 
-// MOCK – troque por sua chamada à API
-const MOCK: Bike[] = [
-  { id: '1', model: 'Honda CG 160', plate: 'ABC1234', beacon: 'beacon-001', status: 'ativa' },
-  { id: '2', model: 'Yamaha Factor 150', plate: 'DEF5678', beacon: 'beacon-002', status: 'ativa' },
-];
+type Beacon = {
+  id: number;
+  uuid: string;
+  motoId?: number | null;
+  modeloNome?: string | null;
+};
 
 export default function MotoPatio() {
   const { colors } = useTheme();
   const s = getStyles(colors);
 
-  const [query, setQuery] = useState('');
-  const [data, setData] = useState<Bike[]>(MOCK);
+  const [motos, setMotos] = useState<Moto[]>([]);
+  const [beacons, setBeacons] = useState<Beacon[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState('');
+
+  // Modal
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [edit, setEdit] = useState<Moto | null>(null);
+  const [form, setForm] = useState({
+    placa: '',
+    clienteId: '',
+    modeloMotoId: '',
+  });
+
+  const load = async () => {
+    try {
+      setLoading(true);
+      const [motosRes, beaconsRes] = await Promise.all([
+        api.get('/api/motos'),
+        api.get('/api/beacons'),
+      ]);
+      setMotos(motosRes.data?.content ?? motosRes.data);
+      setBeacons(beaconsRes.data?.content ?? beaconsRes.data);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Não foi possível carregar os dados.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter(
-      b => b.model.toLowerCase().includes(q) || b.plate.toLowerCase().includes(q)
+    const s = q.trim().toUpperCase();
+    if (!s) return motos;
+    return motos.filter(
+      (m) =>
+        m.placa.toUpperCase().includes(s) ||
+        (m.modeloNome ?? '').toUpperCase().includes(s) ||
+        (m.fabricante ?? '').toUpperCase().includes(s)
     );
-  }, [data, query]);
-
-  const total = filtered.length;
+  }, [motos, q]);
 
   const handleAdd = () => {
-    // TODO: abrir tela/modal de cadastro
-  };
-  const handleFilter = () => {
-    // TODO: filtros avançados
-  };
-  const handleEdit = (item: Bike) => {
-    // TODO: editar item
-  };
-  const handleDelete = (item: Bike) => {
-    // TODO: deletar item
-    setData(x => x.filter(b => b.id !== item.id));
+    setEdit(null);
+    setForm({ placa: '', clienteId: '', modeloMotoId: '' });
+    setOpen(true);
   };
 
-  const renderItem: ListRenderItem<Bike> = ({ item }) => (
+  const handleEdit = (m: Moto) => {
+    setEdit(m);
+    setForm({
+      placa: m.placa,
+      clienteId: String(m.clienteId ?? ''),
+      modeloMotoId: String(m.modeloMotoId ?? ''),
+    });
+    setOpen(true);
+  };
+
+  const handleDelete = (m: Moto) => {
+    Alert.alert('Excluir', `Excluir moto ${m.placa}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.delete(`/api/motos/${m.id}`);
+            await load();
+          } catch (e) {
+            console.error(e);
+            Alert.alert('Erro', 'Não foi possível excluir.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const onSave = async () => {
+    const placa = form.placa.toUpperCase().trim();
+    const clienteId = Number(form.clienteId);
+    const modeloMotoId = Number(form.modeloMotoId);
+
+    if (!placa || !clienteId || !modeloMotoId) {
+      Alert.alert('Validação', 'Preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    const payload = { placa, clienteId, modeloMotoId };
+
+    try {
+      setSaving(true);
+      if (edit) {
+        await api.put(`/api/motos/${edit.id}`, payload);
+        Alert.alert('Atualizado', 'Moto atualizada com sucesso.');
+      } else {
+        await api.post('/api/motos', payload);
+        Alert.alert('Cadastrada', 'Moto cadastrada com sucesso.');
+      }
+      setOpen(false);
+      await load();
+    } catch (e: any) {
+      console.error(e?.response?.data || e);
+      Alert.alert('Erro', e?.response?.data?.message || 'Falha ao salvar.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getBeaconByMoto = (motoId: number) =>
+    beacons.find((b) => b.motoId === motoId)?.uuid ?? null;
+
+  const renderItem = ({ item }: { item: Moto }) => (
     <View style={s.row}>
       <View style={{ flex: 1 }}>
-        <Text style={s.model}>{item.model}</Text>
-        <Text style={s.meta}>
-          Placa: <Text style={s.metaStrong}>{item.plate}</Text>
+        <Text style={s.model}>
+          {item.modeloNome ?? 'Sem modelo'} • {item.fabricante ?? '—'}
         </Text>
-        {!!item.beacon && (
+        <Text style={s.meta}>
+          Placa: <Text style={s.metaStrong}>{item.placa}</Text>
+        </Text>
+        <Text style={s.meta}>Cliente ID: {item.clienteId}</Text>
+        {getBeaconByMoto(item.id) && (
           <View style={s.beaconLine}>
             <Ionicons name="bluetooth-outline" size={14} color={colors.muted} />
-            <Text style={[s.meta, { marginLeft: 4 }]}>{item.beacon}</Text>
+            <Text style={[s.meta, { marginLeft: 4 }]}>{getBeaconByMoto(item.id)}</Text>
           </View>
         )}
       </View>
 
       <View style={s.rightCol}>
-        <StatusChip status={item.status} colors={colors} />
         <View style={s.actions}>
-          <TouchableOpacity onPress={() => handleEdit(item)} style={s.iconBtn} accessibilityLabel="Editar">
-            <Ionicons name="pencil-outline" size={18} color={colors.muted} />
+          <TouchableOpacity onPress={() => handleEdit(item)} style={s.iconBtn}>
+            <Ionicons name="pencil-outline" size={18} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDelete(item)} style={s.iconBtn} accessibilityLabel="Excluir">
+          <TouchableOpacity onPress={() => handleDelete(item)} style={s.iconBtn}>
             <Ionicons name="trash-outline" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
@@ -89,74 +189,105 @@ export default function MotoPatio() {
   return (
     <AppLayout>
       <View style={s.container}>
-        {/* Header */}
         <Text style={s.title}>Motos no Pátio</Text>
-        <Text style={s.subtitle}>
-          {total} {total === 1 ? 'moto' : 'motos'}
-        </Text>
+        <Text style={s.subtitle}>{filtered.length} motos</Text>
 
-        {/* Busca + filtro */}
         <View style={s.searchRow}>
           <View style={s.searchBox}>
             <Ionicons name="search-outline" size={16} color={colors.muted} style={{ marginRight: 8 }} />
             <TextInput
               style={s.input}
-              placeholder="Buscar por placa ou modelo..."
+              placeholder="Buscar por placa, modelo, fabricante..."
               placeholderTextColor={colors.muted}
-              value={query}
-              onChangeText={setQuery}
+              value={q}
+              onChangeText={setQ}
               autoCapitalize="characters"
             />
           </View>
-
-          <TouchableOpacity style={s.filterBtn} onPress={handleFilter} accessibilityLabel="Filtrar">
-            <Ionicons name="filter-outline" size={18} color={colors.text} />
+          <TouchableOpacity style={s.filterBtn} onPress={load}>
+            <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
 
-        {/* Lista */}
-        <FlatList
-          data={filtered}
-          keyExtractor={(it) => it.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 96 }}
-          ItemSeparatorComponent={() => <View style={s.sep} />}
-        />
+        {loading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(it) => String(it.id)}
+            renderItem={renderItem}
+            ItemSeparatorComponent={() => <View style={s.sep} />}
+            contentContainerStyle={{ paddingBottom: 96 }}
+          />
+        )}
 
-        {/* FAB */}
-        <TouchableOpacity style={s.fab} onPress={handleAdd} accessibilityLabel="Adicionar moto">
+        <TouchableOpacity style={s.fab} onPress={handleAdd}>
           <Ionicons name="add" size={24} color="#0b0b0b" />
         </TouchableOpacity>
+
+        {/* Modal de cadastro/edição */}
+        <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+          <View style={s.modalBackdrop}>
+            <KeyboardAvoidingView
+              behavior={Platform.select({ ios: 'padding', android: undefined })}
+              style={{ flex: 1, justifyContent: 'center' }}
+            >
+              <View style={s.modalCard}>
+                <ScrollView contentContainerStyle={{ padding: 14 }}>
+                  <Text style={s.modalTitle}>{edit ? 'Editar Moto' : 'Nova Moto'}</Text>
+
+                  <Text style={s.fieldLabel}>Placa *</Text>
+                  <TextInput
+                    style={s.input}
+                    value={form.placa}
+                    onChangeText={(t) => setForm({ ...form, placa: t.replace(/[^A-Za-z0-9]/g, '').toUpperCase() })}
+                    placeholder="ABC1234"
+                    placeholderTextColor={colors.muted}
+                  />
+
+                  <Text style={s.fieldLabel}>Cliente ID *</Text>
+                  <TextInput
+                    style={s.input}
+                    value={form.clienteId}
+                    onChangeText={(t) => setForm({ ...form, clienteId: t.replace(/[^\d]/g, '') })}
+                    keyboardType="number-pad"
+                    placeholder="1"
+                    placeholderTextColor={colors.muted}
+                  />
+
+                  <Text style={s.fieldLabel}>Modelo Moto ID *</Text>
+                  <TextInput
+                    style={s.input}
+                    value={form.modeloMotoId}
+                    onChangeText={(t) => setForm({ ...form, modeloMotoId: t.replace(/[^\d]/g, '') })}
+                    keyboardType="number-pad"
+                    placeholder="2"
+                    placeholderTextColor={colors.muted}
+                  />
+
+                  <View style={s.actionsRow}>
+                    <TouchableOpacity onPress={() => setOpen(false)} style={s.btnGhost}>
+                      <Text style={s.btnGhostText}>Cancelar</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={onSave}
+                      disabled={saving}
+                      style={[s.btnPrimary, saving && { opacity: 0.6 }]}
+                    >
+                      {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>Salvar</Text>}
+                    </TouchableOpacity>
+                  </View>
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
       </View>
     </AppLayout>
   );
 }
 
-/* ---------- componentes auxiliares ---------- */
-
-function StatusChip({
-  status,
-  colors,
-}: {
-  status: 'ativa' | 'inativa' | 'manutencao';
-  colors: ThemeColors;
-}) {
-  const map = {
-    ativa: { bg: colors.primary, fg: '#0b0b0b', label: 'Ativa' },
-    inativa: { bg: tint(colors.border, 0.5), fg: colors.text, label: 'Inativa' },
-    manutencao: { bg: tint(colors.text, 0.2), fg: '#0b0b0b', label: 'Manutenção' },
-  } as const;
-  const p = map[status];
-
-  return (
-    <View style={{ backgroundColor: p.bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-      <Text style={{ color: p.fg, fontWeight: '700', fontSize: 11 }}>{p.label}</Text>
-    </View>
-  );
-}
-
-/* ---------- estilos baseados no tema ---------- */
-
+/* ---------- estilos e helpers ---------- */
 type ThemeColors = {
   background: string;
   card: string;
@@ -172,7 +303,6 @@ function getStyles(colors: ThemeColors) {
     container: { flex: 1, backgroundColor: colors.background, padding: 16 },
     title: { color: colors.text, fontSize: 18, fontWeight: '800' },
     subtitle: { color: colors.muted, marginBottom: 10 },
-
     searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
     searchBox: {
       flex: 1,
@@ -196,7 +326,6 @@ function getStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-
     row: {
       flexDirection: 'row',
       alignItems: 'flex-start',
@@ -207,7 +336,6 @@ function getStyles(colors: ThemeColors) {
     meta: { color: colors.muted, fontSize: 12 },
     metaStrong: { color: colors.text, fontWeight: '700' },
     beaconLine: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-
     rightCol: { alignItems: 'flex-end', gap: 10, marginLeft: 12 },
     actions: { flexDirection: 'row', gap: 6 },
     iconBtn: {
@@ -220,9 +348,7 @@ function getStyles(colors: ThemeColors) {
       borderWidth: 1,
       borderColor: colors.border,
     },
-
     sep: { height: 1, backgroundColor: colors.border, opacity: 0.6 },
-
     fab: {
       position: 'absolute',
       right: 16,
@@ -239,23 +365,39 @@ function getStyles(colors: ThemeColors) {
       shadowOffset: { width: 0, height: 4 },
       elevation: 6,
     },
-  });
-}
 
-/* ---------- helpers ---------- */
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '');
-  const num = parseInt(h, 16);
-  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
-}
-function clamp(n: number, min = 0, max = 255) {
-  return Math.max(min, Math.min(max, n));
-}
-// clarear uma cor (0..1)
-function tint(hex: string, amount = 0.3) {
-  const { r, g, b } = hexToRgb(hex);
-  const rr = clamp(r + (255 - r) * amount);
-  const gg = clamp(g + (255 - g) * amount);
-  const bb = clamp(b + (255 - b) * amount);
-  return `rgb(${Math.round(rr)}, ${Math.round(gg)}, ${Math.round(bb)})`;
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+    modalCard: {
+      marginHorizontal: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      maxHeight: '85%',
+      overflow: 'hidden',
+    },
+    modalTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
+    fieldLabel: { color: colors.muted, fontSize: 12, marginBottom: 6, fontWeight: '700' },
+    actionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
+    btnGhost: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    btnGhostText: { color: colors.text, fontWeight: '700' },
+    btnPrimary: {
+      flex: 1,
+      height: 44,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.primary,
+    },
+    btnPrimaryText: { color: '#0b0b0b', fontWeight: '800' },
+  });
 }
