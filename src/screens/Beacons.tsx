@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,137 +8,213 @@ import {
   FlatList,
   ListRenderItem,
   Modal,
-  Switch,
   ActivityIndicator,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import AppLayout from '@/components/AppLayout';
 import { useTheme } from '@/context/Theme';
+import api from '@/api/apiClient';
 
+/** ===== Types alinhados ao BeaconDTO do backend ===== */
 type Beacon = {
-  id: string;
-  active: boolean;
-  battery: number;     // 0..100
-  rssi: number;        // 0..100 (força sinal)
-  motoId?: string;     // id da moto vinculada
+  id: number;
+  uuid: string;               // obrigatório
+  bateria?: number | null;    // 0..100
+  motoId?: number | null;
+  modeloBeaconId?: number | null;
+
+  // retornos extras (join) – opcionais
+  placaMoto?: string | null;
+  modeloNome?: string | null;
 };
 
-type Moto = { id: string; label: string };
-
-// MOCKS – troque pela sua API
-const MOTO_MOCK: Moto[] = [
-  { id: 'none', label: 'Nenhuma' },
-  { id: 'm1', label: 'Honda CG 160 (ABC1234)' },
-  { id: 'm2', label: 'Yamaha Factor 150 (DEF5678)' },
-];
-
-const MOCK: Beacon[] = [
-  { id: 'beacon-001', active: true, battery: 100, rssi: 100, motoId: 'm1' },
-  { id: 'beacon-002', active: true, battery: 90, rssi: 88, motoId: 'm2' },
-];
+type BeaconForm = {
+  uuid: string;
+  bateria?: string;           // como string no form; convertemos pra number ao salvar
+  motoId?: string;
+  modeloBeaconId?: string;
+};
 
 export default function Beacons() {
   const { colors } = useTheme();
   const s = getStyles(colors);
 
   const [query, setQuery] = useState('');
-  const [data, setData] = useState<Beacon[]>(MOCK);
+  const [data, setData] = useState<Beacon[]>([]);
+  const [loading, setLoading] = useState(false);
+
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
 
-  // form state
-  const [form, setForm] = useState<Beacon>({
-    id: `beacon-${Math.floor(Math.random() * 1000)}`,
-    active: true,
-    battery: 100,
-    rssi: 100,
-    motoId: 'none',
-  });
+  const [form, setForm] = useState<BeaconForm>({ uuid: '' });
 
+  /** ===== CRUD calls ===== */
+  const load = async () => {
+    try {
+      setLoading(true);
+      const resp = await api.get('/api/beacons');
+      const items: Beacon[] = (resp.data?.content ?? resp.data) as Beacon[];
+      setData(items ?? []);
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Não foi possível carregar os beacons.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadOne = async (id: number) => {
+    try {
+      const { data } = await api.get<Beacon>(`/api/beacons/${id}`);
+      // popula form
+      setForm({
+        uuid: data.uuid ?? '',
+        bateria: data.bateria != null ? String(data.bateria) : '',
+        motoId: data.motoId != null ? String(data.motoId) : '',
+        modeloBeaconId: data.modeloBeaconId != null ? String(data.modeloBeaconId) : '',
+      });
+    } catch (e) {
+      console.error(e);
+      Alert.alert('Erro', 'Não foi possível carregar o beacon.');
+      setOpen(false);
+    }
+  };
+
+  const createOne = async () => {
+    const payload = {
+      uuid: form.uuid.trim(),
+      bateria: form.bateria === '' || form.bateria == null ? undefined : Number(form.bateria),
+      motoId: form.motoId === '' || form.motoId == null ? undefined : Number(form.motoId),
+      modeloBeaconId:
+        form.modeloBeaconId === '' || form.modeloBeaconId == null ? undefined : Number(form.modeloBeaconId),
+    };
+    return api.post('/api/beacons', payload);
+  };
+
+  const updateOne = async (id: number) => {
+    const payload = {
+      uuid: form.uuid.trim(),
+      bateria: form.bateria === '' || form.bateria == null ? undefined : Number(form.bateria),
+      motoId: form.motoId === '' || form.motoId == null ? undefined : Number(form.motoId),
+      modeloBeaconId:
+        form.modeloBeaconId === '' || form.modeloBeaconId == null ? undefined : Number(form.modeloBeaconId),
+    };
+    return api.put(`/api/beacons/${id}`, payload);
+  };
+
+  const deleteOne = async (id: number) => {
+    return api.delete(`/api/beacons/${id}`);
+  };
+
+  /** ===== Effects ===== */
+  useEffect(() => {
+    load();
+  }, []);
+
+  /** ===== UI handlers ===== */
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return data;
-    return data.filter(b => b.id.toLowerCase().includes(q));
+    // busca por UUID (id do seu backend)
+    return data.filter((b) => b.uuid?.toLowerCase().includes(q));
   }, [query, data]);
 
-  const total = filtered.length;
-
   const openNew = () => {
-    setForm({
-      id: `beacon-${Math.floor(Math.random() * 1000)}`,
-      active: true,
-      battery: 100,
-      rssi: 100,
-      motoId: 'none',
-    });
+    setEditingId(null);
+    setForm({ uuid: '', bateria: '', motoId: '', modeloBeaconId: '' });
     setOpen(true);
   };
 
-  const handleSave = async () => {
-    // validações simples
-    if (!form.id.trim()) return;
+  const openEdit = async (b: Beacon) => {
+    setEditingId(b.id);
+    setOpen(true);
+    await loadOne(b.id);
+  };
 
-    setSaving(true);
+  const onSave = async () => {
+    if (!form.uuid.trim()) {
+      Alert.alert('Validação', 'UUID é obrigatório.');
+      return;
+    }
+    // se tiver bateria, valida range básico
+    if (form.bateria) {
+      const n = Number(form.bateria);
+      if (Number.isNaN(n) || n < 0 || n > 100) {
+        Alert.alert('Validação', 'Bateria deve ser um número entre 0 e 100.');
+        return;
+      }
+    }
+
     try {
-      // TODO: enviar para sua API
-      await new Promise(res => setTimeout(res, 700));
-      setData(prev => {
-        const exists = prev.some(b => b.id === form.id);
-        return exists ? prev.map(b => (b.id === form.id ? form : b)) : [form, ...prev];
-      });
+      setSaving(true);
+      if (editingId) {
+        await updateOne(editingId);
+        Alert.alert('Sucesso', 'Beacon atualizado.');
+      } else {
+        await createOne();
+        Alert.alert('Sucesso', 'Beacon criado.');
+      }
       setOpen(false);
+      await load();
+    } catch (e: any) {
+      console.error(e?.response?.data || e);
+      const msg = e?.response?.data?.message || 'Não foi possível salvar.';
+      Alert.alert('Erro', msg);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = (b: Beacon) => {
-    setData(prev => prev.filter(x => x.id !== b.id));
+  const onDelete = (b: Beacon) => {
+    Alert.alert('Excluir', `Deseja excluir o beacon ${b.uuid}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Excluir',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await deleteOne(b.id);
+            await load();
+          } catch (e) {
+            console.error(e);
+            Alert.alert('Erro', 'Não foi possível excluir.');
+          }
+        },
+      },
+    ]);
   };
 
+  /** ===== List item ===== */
   const renderItem: ListRenderItem<Beacon> = ({ item }) => (
     <View style={s.row}>
       <View style={{ flex: 1 }}>
-        <Text style={s.titleRow}>{item.id}</Text>
+        <Text style={s.titleRow}>{item.uuid}</Text>
         <View style={s.metaLine}>
           <Ionicons name="battery-half-outline" size={14} color={colors.muted} />
-          <Text style={s.meta}> {item.battery}%</Text>
-          <Ionicons name="cellular-outline" size={14} color={colors.muted} style={{ marginLeft: 10 }} />
-          <Text style={s.meta}> {item.rssi}%</Text>
+          <Text style={s.meta}> {item.bateria ?? '-'}</Text>
         </View>
-        {!!item.motoId && item.motoId !== 'none' && (
+        {(item.placaMoto || item.modeloNome) && (
           <View style={[s.metaLine, { marginTop: 4 }]}>
             <Ionicons name="bicycle-outline" size={14} color={colors.muted} />
             <Text style={s.meta}>
               {' '}
-              {MOTO_MOCK.find(m => m.id === item.motoId)?.label ?? item.motoId}
+              {item.placaMoto ?? '-'} {item.modeloNome ? `• ${item.modeloNome}` : ''}
             </Text>
           </View>
         )}
       </View>
 
       <View style={s.rightCol}>
-        <StatusChip active={item.active} colors={colors} />
         <View style={s.actions}>
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => {
-              setForm(item);
-              setOpen(true);
-            }}
-            accessibilityLabel="Editar"
-          >
+          <TouchableOpacity style={s.iconBtn} onPress={() => openEdit(item)} accessibilityLabel="Editar">
             <Ionicons name="pencil-outline" size={18} color={colors.muted} />
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.iconBtn}
-            onPress={() => handleDelete(item)}
-            accessibilityLabel="Excluir"
-          >
+          <TouchableOpacity style={s.iconBtn} onPress={() => onDelete(item)} accessibilityLabel="Excluir">
             <Ionicons name="trash-outline" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
@@ -146,20 +222,24 @@ export default function Beacons() {
     </View>
   );
 
+  const total = filtered.length;
+
   return (
     <AppLayout>
       <View style={s.container}>
         {/* Header */}
         <Text style={s.headerTitle}>Beacons</Text>
-        <Text style={s.headerSub}>{total} {total === 1 ? 'beacon' : 'beacons'}</Text>
+        <Text style={s.headerSub}>
+          {total} {total === 1 ? 'beacon' : 'beacons'}
+        </Text>
 
-        {/* Busca + filtro */}
+        {/* Busca (por UUID) */}
         <View style={s.searchRow}>
           <View style={s.searchBox}>
             <Ionicons name="search-outline" size={16} color={colors.muted} style={{ marginRight: 8 }} />
             <TextInput
               style={s.input}
-              placeholder="Buscar por ID do beacon..."
+              placeholder="Buscar por UUID..."
               placeholderTextColor={colors.muted}
               value={query}
               onChangeText={setQuery}
@@ -167,19 +247,28 @@ export default function Beacons() {
             />
           </View>
 
-          <TouchableOpacity style={s.filterBtn} onPress={() => {}} accessibilityLabel="Filtrar">
-            <Ionicons name="filter-outline" size={18} color={colors.text} />
+          <TouchableOpacity
+            style={s.filterBtn}
+            onPress={() => load()}
+            accessibilityLabel="Atualizar lista"
+          >
+            <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
 
         {/* Lista */}
-        <FlatList
-          data={filtered}
-          keyExtractor={(it) => it.id}
-          renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: 96 }}
-          ItemSeparatorComponent={() => <View style={s.sep} />}
-        />
+        {loading ? (
+          <ActivityIndicator color={colors.primary} />
+        ) : (
+          <FlatList
+            data={filtered}
+            keyExtractor={(it) => String(it.id)}
+            renderItem={renderItem}
+            contentContainerStyle={{ paddingBottom: 96 }}
+            ItemSeparatorComponent={() => <View style={s.sep} />}
+            ListEmptyComponent={<Text style={s.empty}>Nenhum beacon cadastrado</Text>}
+          />
+        )}
 
         {/* FAB (+) */}
         <TouchableOpacity style={s.fab} onPress={openNew} accessibilityLabel="Novo beacon">
@@ -196,68 +285,54 @@ export default function Beacons() {
           >
             <View style={s.modalCard}>
               <ScrollView contentContainerStyle={{ padding: 14 }}>
-                <Text style={s.modalTitle}>{form?.id ? 'Editar Beacon' : 'Novo Beacon'}</Text>
+                <Text style={s.modalTitle}>{editingId ? 'Editar Beacon' : 'Novo Beacon'}</Text>
 
-                <Field label="ID">
+                {/* UUID */}
+                <Field label="UUID">
                   <TextInput
                     style={s.fieldInput}
-                    value={form.id}
-                    onChangeText={(t) => setForm({ ...form, id: t })}
-                    placeholder="beacon-xxx"
+                    value={form.uuid}
+                    onChangeText={(t) => setForm({ ...form, uuid: t })}
+                    placeholder="ex.: B-000123-XYZ"
                     placeholderTextColor={colors.muted}
                     autoCapitalize="none"
                   />
                 </Field>
 
-                <Field label="Status">
-                  <View style={s.switchRow}>
-                    <Text style={s.switchLabel}>{form.active ? 'Ativo' : 'Inativo'}</Text>
-                    <Switch
-                      value={form.active}
-                      onValueChange={(v) => setForm({ ...form, active: v })}
-                      trackColor={{ false: '#A3A3A3', true: colors.primary }}
-                      thumbColor="#fff"
-                    />
-                  </View>
+                {/* Bateria */}
+                <Field label="Bateria (0–100)">
+                  <TextInput
+                    style={s.fieldInput}
+                    value={form.bateria ?? ''}
+                    onChangeText={(t) => setForm({ ...form, bateria: t.replace(/[^\d]/g, '') })}
+                    keyboardType="number-pad"
+                    placeholder="ex.: 75"
+                    placeholderTextColor={colors.muted}
+                  />
                 </Field>
 
-                <View style={s.row2}>
-                  <Field label="Nível da Bateria" flex>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={String(form.battery)}
-                      onChangeText={(t) => setForm({ ...form, battery: Number(t.replace(/\D/g, '')) || 0 })}
-                      keyboardType="number-pad"
-                      placeholder="0-100"
-                      placeholderTextColor={colors.muted}
-                    />
-                  </Field>
+                {/* Moto ID */}
+                <Field label="Moto ID">
+                  <TextInput
+                    style={s.fieldInput}
+                    value={form.motoId ?? ''}
+                    onChangeText={(t) => setForm({ ...form, motoId: t.replace(/[^\d]/g, '') })}
+                    keyboardType="number-pad"
+                    placeholder="ex.: 12"
+                    placeholderTextColor={colors.muted}
+                  />
+                </Field>
 
-                  <Field label="Força do Sinal" flex>
-                    <TextInput
-                      style={s.fieldInput}
-                      value={String(form.rssi)}
-                      onChangeText={(t) => setForm({ ...form, rssi: Number(t.replace(/\D/g, '')) || 0 })}
-                      keyboardType="number-pad"
-                      placeholder="0-100"
-                      placeholderTextColor={colors.muted}
-                    />
-                  </Field>
-                </View>
-
-                <Field label="Vincular à Moto">
-                  <View style={s.pickerBox}>
-                    <Picker
-                      selectedValue={form.motoId}
-                      onValueChange={(v) => setForm({ ...form, motoId: v })}
-                      dropdownIconColor={colors.text}
-                      style={{ color: colors.text }}
-                    >
-                      {MOTO_MOCK.map(m => (
-                        <Picker.Item key={m.id} label={m.label} value={m.id} />
-                      ))}
-                    </Picker>
-                  </View>
+                {/* Modelo Beacon ID */}
+                <Field label="Modelo Beacon ID">
+                  <TextInput
+                    style={s.fieldInput}
+                    value={form.modeloBeaconId ?? ''}
+                    onChangeText={(t) => setForm({ ...form, modeloBeaconId: t.replace(/[^\d]/g, '') })}
+                    keyboardType="number-pad"
+                    placeholder="ex.: 5"
+                    placeholderTextColor={colors.muted}
+                  />
                 </Field>
 
                 {/* Ações */}
@@ -267,11 +342,15 @@ export default function Beacons() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    onPress={handleSave}
+                    onPress={onSave}
                     disabled={saving}
                     style={[s.btnPrimary, saving && { opacity: 0.6 }]}
                   >
-                    {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>Salvar</Text>}
+                    {saving ? (
+                      <ActivityIndicator color="#0b0b0b" />
+                    ) : (
+                      <Text style={s.btnPrimaryText}>Salvar</Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </ScrollView>
@@ -284,31 +363,18 @@ export default function Beacons() {
 }
 
 /* ---------- componentes auxiliares ---------- */
-
-function Field({ label, children, flex }: { label: string; children: React.ReactNode; flex?: boolean }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   const { colors } = useTheme();
   const s = getStyles(colors);
   return (
-    <View style={[s.field, flex && { flex: 1 }]}>
+    <View style={s.field}>
       <Text style={s.fieldLabel}>{label}</Text>
       {children}
     </View>
   );
 }
 
-function StatusChip({ active, colors }: { active: boolean; colors: ThemeColors }) {
-  const bg = active ? colors.primary : tint(colors.border, 0.5);
-  const fg = active ? '#0b0b0b' : colors.text;
-  const label = active ? 'Ativo' : 'Inativo';
-  return (
-    <View style={{ backgroundColor: bg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-      <Text style={{ color: fg, fontWeight: '700', fontSize: 11 }}>{label}</Text>
-    </View>
-  );
-}
-
 /* ---------- estilos baseados no tema ---------- */
-
 type ThemeColors = {
   background: string;
   card: string;
@@ -410,15 +476,6 @@ function getStyles(colors: ThemeColors) {
       color: colors.text,
       paddingHorizontal: 10,
     },
-    row2: { flexDirection: 'row', gap: 10 },
-
-    pickerBox: {
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 10,
-      overflow: 'hidden',
-      backgroundColor: colors.background,
-    },
 
     actionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
     btnGhost: {
@@ -443,21 +500,4 @@ function getStyles(colors: ThemeColors) {
     },
     btnPrimaryText: { color: '#0b0b0b', fontWeight: '800' },
   });
-}
-
-/* ---------- helpers ---------- */
-function hexToRgb(hex: string) {
-  const h = hex.replace('#', '');
-  const num = parseInt(h, 16);
-  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
-}
-function clamp(n: number, min = 0, max = 255) {
-  return Math.max(min, Math.min(max, n));
-}
-function tint(hex: string, amount = 0.3) {
-  const { r, g, b } = hexToRgb(hex);
-  const rr = clamp(r + (255 - r) * amount);
-  const gg = clamp(g + (255 - g) * amount);
-  const bb = clamp(b + (255 - b) * amount);
-  return `rgb(${Math.round(rr)}, ${Math.round(gg)}, ${Math.round(bb)})`;
 }
