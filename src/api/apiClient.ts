@@ -3,8 +3,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // notebook
 // const API_BASE_URL = "http://172.20.10.2:8080";
+
 // pc
 // const API_BASE_URL = "http://192.168.68.110:8080";
+
 // render
 const API_BASE_URL = "https://mottooth-java-1.onrender.com/";
 
