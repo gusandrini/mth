@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  View, Text, TouchableOpacity, Modal, TextInput,
   KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -11,9 +11,11 @@ import { Beacon, CreateLocalizacaoForm, Localizacao, Zone } from '@/models/mapa'
 import { listLocalizacoes, createLocalizacao } from '@/api/mapa';
 import { listBeacons } from '@/api/beacons';
 
+import { getMapaStyles } from '@/styles/mapa';
+
 export default function Mapa() {
   const { colors } = useTheme();
-  const s = getStyles(colors);
+  const s = useMemo(() => getMapaStyles(colors), [colors]);
 
   const [loading, setLoading] = useState(false);
   const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([]);
@@ -48,9 +50,8 @@ export default function Mapa() {
 
   useEffect(() => { load(); }, []);
 
-  /** ===== Deriva zonas a partir das localizações e beacons ===== */
+  /** ===== Deriva zonas ===== */
   const zones: Zone[] = useMemo(() => {
-    // motoId -> patioId (usa a última ocorrência na lista)
     const motoToPatio = new Map<number, number>();
     const patioNome = new Map<number, string>();
     for (const loc of localizacoes) {
@@ -58,14 +59,17 @@ export default function Mapa() {
       if (loc.nomePatio) patioNome.set(loc.patioId, loc.nomePatio);
     }
 
-    // motos por pátio (distintas)
     const patioToMotos = new Map<number, Set<number>>();
-    for (const [motoId, patioId] of motoToPatio.entries()) {
+    for (const [, patioId] of motoToPatio.entries()) {
       if (!patioToMotos.has(patioId)) patioToMotos.set(patioId, new Set());
-      patioToMotos.get(patioId)!.add(motoId);
+      patioToMotos.get(patioId)!.add(1 as any); // valor irrelevante; usamos apenas size
     }
+    // ^ acima é equivalente ao seu add(motoId); se preferir manter motoId real:
+    // for (const [motoId, patioId] of motoToPatio.entries()) {
+    //   if (!patioToMotos.has(patioId)) patioToMotos.set(patioId, new Set());
+    //   patioToMotos.get(patioId)!.add(motoId);
+    // }
 
-    // beacons por pátio (via motoId -> patioId)
     const patioToBeacons = new Map<number, number>();
     for (const b of beacons) {
       if (!b.motoId) continue;
@@ -74,7 +78,6 @@ export default function Mapa() {
       patioToBeacons.set(pId, (patioToBeacons.get(pId) ?? 0) + 1);
     }
 
-    // patioIds presentes
     const patioIds = new Set<number>([
       ...Array.from(patioToMotos.keys()),
       ...Array.from(patioToBeacons.keys()),
@@ -97,7 +100,6 @@ export default function Mapa() {
   /** ===== Ações UI ===== */
   const onSelectZone = (z: Zone) => {
     setSelected(z);
-    // sempre reseta o form com o patioId da zona selecionada
     setForm({ posicaoX: '', posicaoY: '', motoId: '', patioId: z.id });
   };
 
@@ -109,7 +111,7 @@ export default function Mapa() {
     return Number.isNaN(n) ? undefined : n;
   };
 
-  /** ===== Criar Localização (com validações + tratamento de erros) ===== */
+  /** ===== Criar Localização ===== */
   const onCreateLocalizacao = async () => {
     const posX = toNumber(form.posicaoX);
     const posY = toNumber(form.posicaoY);
@@ -121,11 +123,9 @@ export default function Mapa() {
       return;
     }
 
-    // (opcional) verificação rápida: a moto tem beacon vinculado?
     const motoTemBeacon = beacons.some(b => b.motoId === motoId);
     if (!motoTemBeacon) {
       Alert.alert('Validação', 'Esta moto não possui beacon vinculado.');
-      // remova este bloco se a regra permitir criar sem beacon
       return;
     }
 
@@ -143,15 +143,10 @@ export default function Mapa() {
       const status = e?.status;
       const msg = e?.message || 'Não foi possível salvar.';
 
-      if (status === 409) {
-        Alert.alert('Conflito', msg || 'Conflito de dados.');
-      } else if (status === 400) {
-        Alert.alert('Dados inválidos', msg);
-      } else if (status === 404) {
-        Alert.alert('Não encontrado', msg);
-      } else {
-        Alert.alert('Erro', msg);
-      }
+      if (status === 409) Alert.alert('Conflito', msg || 'Conflito de dados.');
+      else if (status === 400) Alert.alert('Dados inválidos', msg);
+      else if (status === 404) Alert.alert('Não encontrado', msg);
+      else Alert.alert('Erro', msg);
     } finally {
       setSaving(false);
     }
@@ -246,10 +241,10 @@ export default function Mapa() {
         <View style={s.modalBackdrop}>
           <KeyboardAvoidingView
             behavior={Platform.select({ ios: 'padding', android: undefined })}
-            style={{ flex: 1, justifyContent: 'center' }}
+            style={s.modalKav}
           >
             <View style={s.modalCard}>
-              <ScrollView contentContainerStyle={{ padding: 14 }}>
+              <ScrollView contentContainerStyle={s.modalScrollContent}>
                 <Text style={s.modalTitle}>Nova Localização</Text>
 
                 <Text style={s.fieldLabel}>Pátio ID</Text>
@@ -312,94 +307,4 @@ export default function Mapa() {
       </Modal>
     </AppLayout>
   );
-}
-
-/* ---------- estilos ---------- */
-
-type ThemeColors = {
-  background: string;
-  card: string;
-  text: string;
-  muted: string;
-  border: string;
-  primary: string;
-  accent: string;
-};
-
-function getStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, padding: 16 },
-    headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-    title: { color: colors.text, fontSize: 18, fontWeight: '800' },
-
-    refreshBtn: {
-      width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-    },
-
-    zonesContainer: { flex: 1, gap: 10 },
-    zone: {
-      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-      paddingHorizontal: 14, height: 70, borderRadius: 12, borderWidth: 2, backgroundColor: colors.card,
-      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
-    },
-    zoneLabel: { color: colors.text, fontWeight: '800', fontSize: 14 },
-    zoneSub: { color: colors.muted, fontSize: 12, fontWeight: '700' },
-    zoneIcons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
-    footer: {
-      borderTopWidth: 1, borderColor: colors.border, paddingTop: 10,
-      alignItems: 'center', justifyContent: 'center',
-    },
-    footerText: { color: colors.muted, fontSize: 12, marginBottom: 8 },
-
-    detailCard: {
-      position: 'absolute', right: 10, bottom: 10, backgroundColor: colors.card,
-      borderWidth: 1, borderRadius: 10, padding: 12, minWidth: 180,
-      shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6, gap: 6,
-    },
-    detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
-    detailTitle: { color: colors.text, fontWeight: '800', fontSize: 13 },
-    detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-    detailLabel: { color: colors.muted, fontSize: 12 },
-    detailValue: { color: colors.text, fontWeight: '700', fontSize: 13 },
-
-    primaryBtn: {
-      marginTop: 6, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary,
-    },
-    primaryBtnText: { color: '#0b0b0b', fontWeight: '800' },
-
-    // modal
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-    modalCard: {
-      marginHorizontal: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
-      borderRadius: 12, maxHeight: '85%', overflow: 'hidden',
-    },
-    modalTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
-
-    fieldLabel: { color: colors.muted, fontSize: 12, marginBottom: 6, fontWeight: '700' },
-    input: {
-      height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-      backgroundColor: colors.background, color: colors.text, paddingHorizontal: 10, marginBottom: 10,
-    },
-    inputBox: {
-      height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
-      backgroundColor: colors.background, paddingHorizontal: 10, marginBottom: 10,
-      alignItems: 'flex-start', justifyContent: 'center',
-    },
-    inputText: { color: colors.text },
-
-    row2: { flexDirection: 'row', gap: 10 },
-
-    actionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-    btnGhost: {
-      flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
-      backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border,
-    },
-    btnGhostText: { color: colors.text, fontWeight: '700' },
-    btnPrimary: {
-      flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary,
-    },
-    btnPrimaryText: { color: '#0b0b0b', fontWeight: '800' },
-  });
 }

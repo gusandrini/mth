@@ -1,8 +1,8 @@
 /** Types alinhados ao BeaconDTO do backend */
 export type Beacon = {
   id: number;
-  uuid: string;               // obrigatório
-  bateria?: number | null;    // 0..100
+  uuid: string;           // obrigatório
+  bateria?: number | null;  // 0..100
   motoId?: number | null;
   modeloBeaconId?: number | null;
 
@@ -13,7 +13,7 @@ export type Beacon = {
 
 export type BeaconForm = {
   uuid: string;
-  bateria?: string;           // no form usamos string; convertemos no service
+  bateria?: string;        // no form usamos string; convertemos no service
   motoId?: string;
   modeloBeaconId?: string;
 };

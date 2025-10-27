@@ -1,43 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  Alert,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, TextInput, TouchableOpacity, FlatList,
+  ActivityIndicator, Alert, Modal, KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/Theme';
 import AppLayout from '@/components/AppLayout';
-import api from '@/api/apiClient';
 
-type Moto = {
-  id: number;
-  placa: string;
-  clienteId: number;
-  modeloMotoId: number;
-  nomeCliente?: string | null;
-  modeloNome?: string | null;
-  fabricante?: string | null;
-};
+import { getMotoPatioStyles } from '@/styles/motoPatio';
 
-type Beacon = {
-  id: number;
-  uuid: string;
-  motoId?: number | null;
-  modeloNome?: string | null;
-};
+import type { Moto, MotoForm } from '@/models/moto';
+import { listMotos, createMoto, updateMoto, deleteMoto } from '@/api/moto';
+
+import type { Beacon } from '@/models/beacons';
+import { listBeacons } from '@/api/beacons';
 
 export default function MotoPatio() {
   const { colors } = useTheme();
-  const s = getStyles(colors);
+  const s = useMemo(() => getMotoPatioStyles(colors), [colors]);
 
   const [motos, setMotos] = useState<Moto[]>([]);
   const [beacons, setBeacons] = useState<Beacon[]>([]);
@@ -48,32 +28,23 @@ export default function MotoPatio() {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [edit, setEdit] = useState<Moto | null>(null);
-  const [form, setForm] = useState({
-    placa: '',
-    clienteId: '',
-    modeloMotoId: '',
-  });
+  const [form, setForm] = useState<MotoForm>({ placa: '', clienteId: '', modeloMotoId: '' });
 
-  const load = async () => {
+  const load = useCallback(async () => {
     try {
       setLoading(true);
-      const [motosRes, beaconsRes] = await Promise.all([
-        api.get('/api/motos'),
-        api.get('/api/beacons'),
-      ]);
-      setMotos(motosRes.data?.content ?? motosRes.data);
-      setBeacons(beaconsRes.data?.content ?? beaconsRes.data);
+      const [motosRes, beaconsRes] = await Promise.all([listMotos(), listBeacons()]);
+      setMotos(motosRes);
+      setBeacons(beaconsRes);
     } catch (e) {
       console.error(e);
       Alert.alert('Erro', 'Não foi possível carregar os dados.');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    load();
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toUpperCase();
@@ -86,13 +57,13 @@ export default function MotoPatio() {
     );
   }, [motos, q]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     setEdit(null);
     setForm({ placa: '', clienteId: '', modeloMotoId: '' });
     setOpen(true);
-  };
+  }, []);
 
-  const handleEdit = (m: Moto) => {
+  const handleEdit = useCallback((m: Moto) => {
     setEdit(m);
     setForm({
       placa: m.placa,
@@ -100,9 +71,9 @@ export default function MotoPatio() {
       modeloMotoId: String(m.modeloMotoId ?? ''),
     });
     setOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (m: Moto) => {
+  const handleDelete = useCallback((m: Moto) => {
     Alert.alert('Excluir', `Excluir moto ${m.placa}?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
@@ -110,7 +81,7 @@ export default function MotoPatio() {
         style: 'destructive',
         onPress: async () => {
           try {
-            await api.delete(`/api/motos/${m.id}`);
+            await deleteMoto(m.id);
             await load();
           } catch (e) {
             console.error(e);
@@ -119,10 +90,10 @@ export default function MotoPatio() {
         },
       },
     ]);
-  };
+  }, [load]);
 
-  const onSave = async () => {
-    const placa = form.placa.toUpperCase().trim();
+  const onSave = useCallback(async () => {
+    const placa = form.placa?.trim().toUpperCase();
     const clienteId = Number(form.clienteId);
     const modeloMotoId = Number(form.modeloMotoId);
 
@@ -131,15 +102,13 @@ export default function MotoPatio() {
       return;
     }
 
-    const payload = { placa, clienteId, modeloMotoId };
-
     try {
       setSaving(true);
       if (edit) {
-        await api.put(`/api/motos/${edit.id}`, payload);
+        await updateMoto(edit.id, form);
         Alert.alert('Atualizado', 'Moto atualizada com sucesso.');
       } else {
-        await api.post('/api/motos', payload);
+        await createMoto(form);
         Alert.alert('Cadastrada', 'Moto cadastrada com sucesso.');
       }
       setOpen(false);
@@ -150,12 +119,14 @@ export default function MotoPatio() {
     } finally {
       setSaving(false);
     }
-  };
+  }, [edit, form, load]);
 
-  const getBeaconByMoto = (motoId: number) =>
-    beacons.find((b) => b.motoId === motoId)?.uuid ?? null;
+  const getBeaconByMoto = useCallback(
+    (motoId: number) => beacons.find((b) => b.motoId === motoId)?.uuid ?? null,
+    [beacons]
+  );
 
-  const renderItem = ({ item }: { item: Moto }) => (
+  const renderItem = useCallback(({ item }: { item: Moto }) => (
     <View style={s.row}>
       <View style={{ flex: 1 }}>
         <Text style={s.model}>
@@ -165,6 +136,7 @@ export default function MotoPatio() {
           Placa: <Text style={s.metaStrong}>{item.placa}</Text>
         </Text>
         <Text style={s.meta}>Cliente ID: {item.clienteId}</Text>
+
         {getBeaconByMoto(item.id) && (
           <View style={s.beaconLine}>
             <Ionicons name="bluetooth-outline" size={14} color={colors.muted} />
@@ -184,7 +156,7 @@ export default function MotoPatio() {
         </View>
       </View>
     </View>
-  );
+  ), [colors.muted, getBeaconByMoto, handleDelete, handleEdit, s]);
 
   return (
     <AppLayout>
@@ -194,7 +166,7 @@ export default function MotoPatio() {
 
         <View style={s.searchRow}>
           <View style={s.searchBox}>
-            <Ionicons name="search-outline" size={16} color={colors.muted} style={{ marginRight: 8 }} />
+            <Ionicons name="search-outline" size={16} color={colors.muted} style={s.searchIcon} />
             <TextInput
               style={s.input}
               placeholder="Buscar por placa, modelo, fabricante..."
@@ -204,7 +176,7 @@ export default function MotoPatio() {
               autoCapitalize="characters"
             />
           </View>
-          <TouchableOpacity style={s.filterBtn} onPress={load}>
+          <TouchableOpacity style={s.filterBtn} onPress={load} accessibilityLabel="Atualizar lista">
             <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -217,11 +189,11 @@ export default function MotoPatio() {
             keyExtractor={(it) => String(it.id)}
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={s.sep} />}
-            contentContainerStyle={{ paddingBottom: 96 }}
+            contentContainerStyle={s.listContent}
           />
         )}
 
-        <TouchableOpacity style={s.fab} onPress={handleAdd}>
+        <TouchableOpacity style={s.fab} onPress={handleAdd} accessibilityLabel="Nova moto">
           <Ionicons name="add" size={24} color="#0b0b0b" />
         </TouchableOpacity>
 
@@ -230,10 +202,10 @@ export default function MotoPatio() {
           <View style={s.modalBackdrop}>
             <KeyboardAvoidingView
               behavior={Platform.select({ ios: 'padding', android: undefined })}
-              style={{ flex: 1, justifyContent: 'center' }}
+              style={s.modalKav}
             >
               <View style={s.modalCard}>
-                <ScrollView contentContainerStyle={{ padding: 14 }}>
+                <ScrollView contentContainerStyle={s.modalScrollContent}>
                   <Text style={s.modalTitle}>{edit ? 'Editar Moto' : 'Nova Moto'}</Text>
 
                   <Text style={s.fieldLabel}>Placa *</Text>
@@ -285,119 +257,4 @@ export default function MotoPatio() {
       </View>
     </AppLayout>
   );
-}
-
-/* ---------- estilos e helpers ---------- */
-type ThemeColors = {
-  background: string;
-  card: string;
-  text: string;
-  muted: string;
-  border: string;
-  primary: string;
-  accent: string;
-};
-
-function getStyles(colors: ThemeColors) {
-  return StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.background, padding: 16 },
-    title: { color: colors.text, fontSize: 18, fontWeight: '800' },
-    subtitle: { color: colors.muted, marginBottom: 10 },
-    searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-    searchBox: {
-      flex: 1,
-      flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: colors.card,
-      borderColor: colors.border,
-      borderWidth: 1,
-      borderRadius: 12,
-      paddingHorizontal: 10,
-      height: 40,
-    },
-    input: { flex: 1, color: colors.text, fontSize: 14 },
-    filterBtn: {
-      width: 40,
-      height: 40,
-      borderRadius: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    row: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      paddingVertical: 12,
-      paddingRight: 4,
-    },
-    model: { color: colors.text, fontWeight: '800', fontSize: 15, marginBottom: 4 },
-    meta: { color: colors.muted, fontSize: 12 },
-    metaStrong: { color: colors.text, fontWeight: '700' },
-    beaconLine: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
-    rightCol: { alignItems: 'flex-end', gap: 10, marginLeft: 12 },
-    actions: { flexDirection: 'row', gap: 6 },
-    iconBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 8,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    sep: { height: 1, backgroundColor: colors.border, opacity: 0.6 },
-    fab: {
-      position: 'absolute',
-      right: 16,
-      bottom: 24,
-      width: 48,
-      height: 48,
-      borderRadius: 24,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary,
-      shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 8,
-      shadowOffset: { width: 0, height: 4 },
-      elevation: 6,
-    },
-
-    modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
-    modalCard: {
-      marginHorizontal: 12,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      maxHeight: '85%',
-      overflow: 'hidden',
-    },
-    modalTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
-    fieldLabel: { color: colors.muted, fontSize: 12, marginBottom: 6, fontWeight: '700' },
-    actionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
-    btnGhost: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'transparent',
-      borderWidth: 1,
-      borderColor: colors.border,
-    },
-    btnGhostText: { color: colors.text, fontWeight: '700' },
-    btnPrimary: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary,
-    },
-    btnPrimaryText: { color: '#0b0b0b', fontWeight: '800' },
-  });
 }
