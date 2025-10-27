@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, NavigationProp } from '@react-navigation/native';
 import AppLayout from '@/components/AppLayout';
 import { useTheme } from '@/context/Theme';
+import { useI18n } from '@/i18n/I18nProvider';
 
 // API
 import { Beacon, Localizacao, Zone } from '@/models/mapa';
@@ -22,6 +23,7 @@ type RootStack = Record<string, object | undefined>;
 export default function Home() {
   const navigation = useNavigation<NavigationProp<RootStack>>();
   const { colors } = useTheme();
+  const { t } = useI18n(); // 🔸 usar t() pra tudo
   const s = useMemo(() => getHomeStyles(colors), [colors]);
 
   // estado
@@ -40,7 +42,7 @@ export default function Home() {
       setBeacons(bcs);
     } catch (e: any) {
       console.error(e);
-      setError(e?.message || 'Falha ao carregar dados.');
+      setError(e?.message || t('common.errorLoading'));
     } finally {
       setLoading(false);
     }
@@ -87,14 +89,14 @@ export default function Home() {
 
     const out: Zone[] = Array.from(patioIds).map((id) => ({
       id,
-      label: patioNome.get(id) ?? `Pátio ${id}`,
+      label: patioNome.get(id) ?? t('home.yard', { id }), // 🔸 “Pátio 1” / “Patio 1”
       motos: patioToMotos.get(id)?.size ?? 0,
       beacons: patioToBeacons.get(id) ?? 0,
     }));
 
     out.sort((a, b) => a.id - b.id);
     return out;
-  }, [localizacoes, beacons]);
+  }, [localizacoes, beacons, t]);
 
   const motosNoPatio = useMemo(() => new Set(localizacoes.map(l => l.motoId)).size, [localizacoes]);
   const beaconsAtivos = beacons.length;
@@ -107,6 +109,13 @@ export default function Home() {
     shade(colors.primary, -0.4),
   ]), [colors.primary]);
 
+  // helpers de label localizadas
+  const kpiMotosHighlight = `${motosNoPatio} ${t('home.kpiMotosSuffix')}`;        // “no Pátio” / “en el Patio”
+  const kpiBeaconsHighlight = `${beaconsAtivos} ${t('home.kpiBeaconsSuffix')}`;   // “Ativos” / “Activos”
+
+  const zoneCountsLabel = (z: Zone) =>
+    t('home.zoneCounts', { label: z.label, motos: z.motos, beacons: z.beacons });
+
   return (
     <AppLayout>
       <View style={s.screen}>
@@ -117,15 +126,26 @@ export default function Home() {
           {/* Header */}
           <View style={s.header}>
             <View>
-              <Text style={s.brand}>Mottooth</Text>
-              <Text style={s.subtitle}>Gestão de Pátio</Text>
+              <Text style={s.brand}>{t('home.brand')}</Text>
+              <Text style={s.subtitle}>{t('home.subtitle')}</Text>
             </View>
           </View>
 
           {/* KPI Cards */}
           <View style={s.kpiRow}>
-            <KpiCard title="Motos no" highlight={`${motosNoPatio} no Pátio`} icon="bicycle-outline" colors={colors} />
-            <KpiCard title="Beacons" highlight={`${beaconsAtivos} Ativos`} icon="wifi-outline" align="right" colors={colors} />
+            <KpiCard
+              title={t('home.kpiMotosTitle')}
+              highlight={kpiMotosHighlight}
+              icon="bicycle-outline"
+              colors={colors}
+            />
+            <KpiCard
+              title={t('home.kpiBeaconsTitle')}
+              highlight={kpiBeaconsHighlight}
+              icon="wifi-outline"
+              align="right"
+              colors={colors}
+            />
           </View>
 
           {/* Erro */}
@@ -137,15 +157,17 @@ export default function Home() {
                 style={{ marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 6 }}
               >
                 <Ionicons name="refresh-outline" size={14} color={colors.text} />
-                <Text style={{ color: colors.text, fontWeight: '700' }}>Tentar novamente</Text>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>
+                  {t('common.tryAgain')}
+                </Text>
               </TouchableOpacity>
             </View>
           )}
 
           {/* Resumo do Mapa */}
           <SectionHeader
-            title="Resumo do Mapa"
-            rightAction="Ver Mapa >"
+            title={t('home.mapSummary')}
+            rightAction={t('home.seeMap')}
             onPressRight={() => navigation.navigate('Mapa' as never)}
             leftIcons={[{ name: 'grid-outline' as const }, { name: 'construct-outline' as const }, { name: 'bicycle-outline' as const }]}
             colors={colors}
@@ -159,20 +181,20 @@ export default function Home() {
                   <ZoneBar
                     key={z.id}
                     color={zonePalette[idx % zonePalette.length]}
-                    label={`${z.label} — ${z.motos} motos • ${z.beacons} beacons`}
+                    label={zoneCountsLabel(z)}
                     colors={colors}
                   />
                 ))
               ) : (
-                <EmptyState text="Nenhum dado encontrado. Cadastre localizações." colors={colors} />
+                <EmptyState text={t('common.empty')} colors={colors} />
               )}
             </View>
           </View>
 
           {/* Últimas Motos */}
           <SectionHeader
-            title="Últimas Motos Cadastradas"
-            rightAction="Ver Todas >"
+            title={t('home.lastMotos')}
+            rightAction={t('home.seeAll')}
             onPressRight={() => navigation.navigate('MotoPatio' as never)}
             colors={colors}
           />
@@ -184,20 +206,20 @@ export default function Home() {
                 <ListRow
                   key={m.motoId}
                   leftIcon="bicycle-outline"
-                  title={m.placa || `Moto #${m.motoId}`}
-                  subtitle={m.patio ? `Pátio: ${m.patio}` : undefined}
+                  title={m.placa || t('home.bikeNumber', { id: m.motoId })}
+                  subtitle={m.patio ? t('home.yardLabel', { name: m.patio }) : undefined}
                   colors={colors}
                 />
               ))}
             </View>
           ) : (
-            <EmptyState text="Nenhuma moto cadastrada ainda" colors={colors} />
+            <EmptyState text={t('home.noBikes')} colors={colors} />
           )}
 
           {/* Últimos Beacons */}
           <SectionHeader
-            title="Últimos Beacons"
-            rightAction="Ver Todos >"
+            title={t('home.lastBeacons')}
+            rightAction={t('home.seeAll')}
             onPressRight={() => navigation.navigate('Beacons' as never)}
             colors={colors}
           />
@@ -210,13 +232,19 @@ export default function Home() {
                   key={b.id}
                   leftIcon="bluetooth-outline"
                   title={b.uuid}
-                  subtitle={b.placaMoto ? `Moto: ${b.placaMoto}` : b.motoId ? `Moto #${b.motoId}` : undefined}
+                  subtitle={
+                    b.placaMoto
+                      ? t('home.bikeLabel', { plate: b.placaMoto })
+                      : b.motoId
+                        ? t('home.bikeNumber', { id: b.motoId })
+                        : undefined
+                  }
                   colors={colors}
                 />
               ))}
             </View>
           ) : (
-            <EmptyState text="Nenhum beacon cadastrado ainda" colors={colors} />
+            <EmptyState text={t('home.noBeacons')} colors={colors} />
           )}
 
           <View style={{ height: 16 }} />
@@ -226,7 +254,7 @@ export default function Home() {
   );
 }
 
-/* ---------- Componentes locais (sem estilos inline duplicados) ---------- */
+/* ---------- Componentes locais ---------- */
 
 function KpiCard({
   title, highlight, icon, align = 'left', colors,
@@ -334,7 +362,7 @@ function EmptyState({ text, colors }: { text: string; colors: ThemeColors }) {
   );
 }
 
-/* ---------- helpers de listas (inalterados) ---------- */
+/* ---------- helpers de listas ---------- */
 function getUltimasMotos(localizacoes: Localizacao[]) {
   type LastMoto = { motoId: number; placa?: string | null; patio?: string | null; data?: string | null };
   const byMoto = new Map<number, Localizacao>();

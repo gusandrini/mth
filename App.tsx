@@ -10,22 +10,25 @@ import MotoPatio from '@/screens/MotoPatio';
 import Beacons from '@/screens/Beacons';
 import Mapa from '@/screens/Mapa';
 import Config from '@/screens/Config';
+import { I18nProvider } from "@/i18n/I18nProvider";
 
 const Stack = createNativeStackNavigator();
 
 function Routes() {
   const { isDark } = useTheme();
   return (
-    <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Login" component={Login} />
-        <Stack.Screen name="Home" component={Home} />
-        <Stack.Screen name="MotoPatio" component={MotoPatio} />
-        <Stack.Screen name="Beacons" component={Beacons} />
-        <Stack.Screen name="Mapa" component={Mapa} /> 
-        <Stack.Screen name="Config" component={Config} />
-      </Stack.Navigator>
-    </NavigationContainer>
+    <I18nProvider>
+      <NavigationContainer theme={isDark ? DarkTheme : DefaultTheme}>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="Home" component={Home} />
+          <Stack.Screen name="MotoPatio" component={MotoPatio} />
+          <Stack.Screen name="Beacons" component={Beacons} />
+          <Stack.Screen name="Mapa" component={Mapa} /> 
+          <Stack.Screen name="Config" component={Config} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </I18nProvider>
   );
 }
 
