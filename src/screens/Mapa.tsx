@@ -1,59 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  ActivityIndicator,
-  Alert,
+  View, Text, StyleSheet, TouchableOpacity, Modal, TextInput,
+  KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/context/Theme';
 import AppLayout from '@/components/AppLayout';
-import api from '@/api/apiClient';
 
-/** ===== Tipos vindos do backend ===== */
-type Localizacao = {
-  id: number;
-  posicaoX: number;
-  posicaoY: number;
-  dataHora?: string | null;
-  motoId: number;
-  patioId: number;
-  placaMoto?: string | null;
-  nomePatio?: string | null;
-};
-
-type Beacon = {
-  id: number;
-  uuid: string;
-  bateria?: number | null;
-  motoId?: number | null;
-  modeloBeaconId?: number | null;
-  placaMoto?: string | null;
-  modeloNome?: string | null;
-};
-
-/** Zona derivada dos dados da API */
-type Zone = {
-  id: number;    // patioId
-  label: string; // nomePatio ou "Pátio {id}"
-  motos: number; // motos distintas nesse pátio
-  beacons: number; // beacons cujas motos estão nesse pátio
-};
-
-/** Form para criar Localizacao */
-type CreateLocalizacaoForm = {
-  posicaoX: string;
-  posicaoY: string;
-  motoId: string;
-  patioId: number;
-};
+import { Beacon, CreateLocalizacaoForm, Localizacao, Zone } from '@/models/mapa';
+import { listLocalizacoes, createLocalizacao } from '@/api/mapa';
+import { listBeacons } from '@/api/beacons';
 
 export default function Mapa() {
   const { colors } = useTheme();
@@ -62,7 +18,6 @@ export default function Mapa() {
   const [loading, setLoading] = useState(false);
   const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([]);
   const [beacons, setBeacons] = useState<Beacon[]>([]);
-
   const [selected, setSelected] = useState<Zone | null>(null);
 
   // Modal criar Localizacao
@@ -79,19 +34,13 @@ export default function Mapa() {
   const load = async () => {
     try {
       setLoading(true);
-      const [locResp, bcResp] = await Promise.all([
-        api.get('/api/localizacoes'),
-        api.get('/api/beacons'),
-      ]);
-
-      const locs: Localizacao[] = (locResp.data?.content ?? locResp.data) ?? [];
-      const bcs: Beacon[] = (bcResp.data?.content ?? bcResp.data) ?? [];
-
+      const [locs, bcs] = await Promise.all([listLocalizacoes(), listBeacons()]);
       setLocalizacoes(locs);
       setBeacons(bcs);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível carregar dados do pátio.');
+      const msg = e?.message || 'Não foi possível carregar dados do pátio.';
+      Alert.alert('Erro', msg);
     } finally {
       setLoading(false);
     }
@@ -152,6 +101,7 @@ export default function Mapa() {
     setForm({ posicaoX: '', posicaoY: '', motoId: '', patioId: z.id });
   };
 
+  /** helpers */
   const toNumber = (v: string) => {
     if (!v || v.trim() === '') return undefined;
     const norm = v.replace(',', '.');
@@ -159,6 +109,7 @@ export default function Mapa() {
     return Number.isNaN(n) ? undefined : n;
   };
 
+  /** ===== Criar Localização (com validações + tratamento de erros) ===== */
   const onCreateLocalizacao = async () => {
     const posX = toNumber(form.posicaoX);
     const posY = toNumber(form.posicaoY);
@@ -170,19 +121,37 @@ export default function Mapa() {
       return;
     }
 
+    // (opcional) verificação rápida: a moto tem beacon vinculado?
+    const motoTemBeacon = beacons.some(b => b.motoId === motoId);
+    if (!motoTemBeacon) {
+      Alert.alert('Validação', 'Esta moto não possui beacon vinculado.');
+      // remova este bloco se a regra permitir criar sem beacon
+      return;
+    }
+
     const payload = { posicaoX: posX, posicaoY: posY, motoId, patioId };
 
     try {
       setSaving(true);
-      await api.post('/api/localizacoes', payload);
+      await createLocalizacao(payload);
       Alert.alert('Sucesso', 'Localização criada.');
       setOpen(false);
       setForm({ posicaoX: '', posicaoY: '', motoId: '', patioId: 0 });
       await load();
     } catch (e: any) {
-      console.error(e?.response?.data || e);
-      const msg = e?.response?.data?.message || 'Não foi possível salvar.';
-      Alert.alert('Erro', msg);
+      console.error(e);
+      const status = e?.status;
+      const msg = e?.message || 'Não foi possível salvar.';
+
+      if (status === 409) {
+        Alert.alert('Conflito', msg || 'Conflito de dados.');
+      } else if (status === 400) {
+        Alert.alert('Dados inválidos', msg);
+      } else if (status === 404) {
+        Alert.alert('Não encontrado', msg);
+      } else {
+        Alert.alert('Erro', msg);
+      }
     } finally {
       setSaving(false);
     }
@@ -272,7 +241,7 @@ export default function Mapa() {
         )}
       </View>
 
-      {/* Modal: Criar Localização (100% API) */}
+      {/* Modal: Criar Localização */}
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={s.modalBackdrop}>
           <KeyboardAvoidingView
@@ -370,104 +339,53 @@ function getStyles(colors: ThemeColors) {
 
     zonesContainer: { flex: 1, gap: 10 },
     zone: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      paddingHorizontal: 14,
-      height: 70,
-      borderRadius: 12,
-      borderWidth: 2,
-      backgroundColor: colors.card,
-      shadowColor: '#000',
-      shadowOpacity: 0.15,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 2 },
-      elevation: 4,
+      flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+      paddingHorizontal: 14, height: 70, borderRadius: 12, borderWidth: 2, backgroundColor: colors.card,
+      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4,
     },
     zoneLabel: { color: colors.text, fontWeight: '800', fontSize: 14 },
     zoneSub: { color: colors.muted, fontSize: 12, fontWeight: '700' },
     zoneIcons: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
     footer: {
-      borderTopWidth: 1,
-      borderColor: colors.border,
-      paddingTop: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
+      borderTopWidth: 1, borderColor: colors.border, paddingTop: 10,
+      alignItems: 'center', justifyContent: 'center',
     },
     footerText: { color: colors.muted, fontSize: 12, marginBottom: 8 },
 
     detailCard: {
-      position: 'absolute',
-      right: 10,
-      bottom: 10,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderRadius: 10,
-      padding: 12,
-      minWidth: 180,
-      shadowColor: '#000',
-      shadowOpacity: 0.2,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 6,
-      gap: 6,
+      position: 'absolute', right: 10, bottom: 10, backgroundColor: colors.card,
+      borderWidth: 1, borderRadius: 10, padding: 12, minWidth: 180,
+      shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6, gap: 6,
     },
-    detailHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 2,
-    },
+    detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 },
     detailTitle: { color: colors.text, fontWeight: '800', fontSize: 13 },
     detailRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
     detailLabel: { color: colors.muted, fontSize: 12 },
     detailValue: { color: colors.text, fontWeight: '700', fontSize: 13 },
 
     primaryBtn: {
-      marginTop: 6,
-      height: 40,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary,
+      marginTop: 6, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary,
     },
     primaryBtnText: { color: '#0b0b0b', fontWeight: '800' },
 
     // modal
     modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
     modalCard: {
-      marginHorizontal: 12,
-      backgroundColor: colors.card,
-      borderWidth: 1,
-      borderColor: colors.border,
-      borderRadius: 12,
-      maxHeight: '85%',
-      overflow: 'hidden',
+      marginHorizontal: 12, backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border,
+      borderRadius: 12, maxHeight: '85%', overflow: 'hidden',
     },
     modalTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
 
     fieldLabel: { color: colors.muted, fontSize: 12, marginBottom: 6, fontWeight: '700' },
     input: {
-      height: 40,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-      color: colors.text,
-      paddingHorizontal: 10,
-      marginBottom: 10,
+      height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+      backgroundColor: colors.background, color: colors.text, paddingHorizontal: 10, marginBottom: 10,
     },
     inputBox: {
-      height: 40,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: colors.border,
-      backgroundColor: colors.background,
-      paddingHorizontal: 10,
-      marginBottom: 10,
-      alignItems: 'flex-start',
-      justifyContent: 'center',
+      height: 40, borderRadius: 10, borderWidth: 1, borderColor: colors.border,
+      backgroundColor: colors.background, paddingHorizontal: 10, marginBottom: 10,
+      alignItems: 'flex-start', justifyContent: 'center',
     },
     inputText: { color: colors.text },
 
@@ -475,23 +393,12 @@ function getStyles(colors: ThemeColors) {
 
     actionsRow: { flexDirection: 'row', gap: 10, marginTop: 6 },
     btnGhost: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'transparent',
-      borderWidth: 1,
-      borderColor: colors.border,
+      flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+      backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border,
     },
     btnGhostText: { color: colors.text, fontWeight: '700' },
     btnPrimary: {
-      flex: 1,
-      height: 44,
-      borderRadius: 10,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: colors.primary,
+      flex: 1, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.primary,
     },
     btnPrimaryText: { color: '#0b0b0b', fontWeight: '800' },
   });
