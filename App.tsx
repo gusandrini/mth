@@ -25,7 +25,7 @@ function Routes() {
           <Stack.Screen name="MotoPatio" component={MotoPatio} />
           <Stack.Screen name="Beacons" component={Beacons} />
           <Stack.Screen name="Mapa" component={Mapa} /> 
-          <Stack.Screen name="Config" component={Config} />
+          <Stack.Screen name="Ajustes" component={Config} />
         </Stack.Navigator>
       </NavigationContainer>
     </I18nProvider>

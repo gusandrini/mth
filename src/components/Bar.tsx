@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/context/Theme';
 
-type RouteKey = 'Home' | 'MotoPatio' | 'Beacons' | 'Mapa' | 'Config';
+type RouteKey = 'Home' | 'MotoPatio' | 'Beacons' | 'Mapa' | 'Ajustes';
 
 type Item = {
   key: RouteKey;
@@ -19,7 +19,7 @@ const ITEMS: Item[] = [
   { key: 'MotoPatio', label: 'Motos',   icon: 'bicycle-outline',  routeName: 'MotoPatio' },
   { key: 'Beacons',   label: 'Beacons', icon: 'wifi-outline',     routeName: 'Beacons' },
   { key: 'Mapa',      label: 'Mapa',    icon: 'map-outline',      routeName: 'Mapa' },
-  { key: 'Config',    label: 'Config',  icon: 'settings-outline', routeName: 'Config' },
+  { key: 'Ajustes',    label: 'Ajustes',  icon: 'settings-outline', routeName: 'Ajustes' },
 ];
 
 export default function Bar() {
