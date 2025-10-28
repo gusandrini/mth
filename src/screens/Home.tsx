@@ -189,8 +189,6 @@ export default function Home() {
           {/* Resumo do Mapa */}
           <SectionHeader
             title={t('home.mapSummary')}
-            rightAction={t('home.seeMap')}
-            onPressRight={() => navigation.navigate('Mapa' as never)}
             colors={colors}
           />
 
@@ -216,8 +214,6 @@ export default function Home() {
           {/* Últimas Motos */}
           <SectionHeader
             title={t('home.lastMotos')}
-            rightAction={t('home.seeAll')}
-            onPressRight={() => navigation.navigate('MotoPatio' as never)}
             colors={colors}
           />
           {loading ? (
@@ -243,8 +239,6 @@ export default function Home() {
           {/* Últimos Beacons */}
           <SectionHeader
             title={t('home.lastBeacons')}
-            rightAction={t('home.seeAll')}
-            onPressRight={() => navigation.navigate('Beacons' as never)}
             colors={colors}
           />
           {loading ? (
