@@ -191,13 +191,9 @@ export default function Home() {
             title={t('home.mapSummary')}
             rightAction={t('home.seeMap')}
             onPressRight={() => navigation.navigate('Mapa' as never)}
-            leftIcons={[
-              { name: 'grid-outline' as const },
-              { name: 'construct-outline' as const },
-              { name: 'bicycle-outline' as const },
-            ]}
             colors={colors}
           />
+
           <View style={s.mapResumeContainer}>
             <View style={s.col}>
               {loading ? (
@@ -352,20 +348,13 @@ function ZoneBar({ color, label, colors }: { color: string; label: string; color
   const s = useMemo(() => getHomeStyles(colors), [colors]);
   return (
     <View style={[s.zoneBarWrap, { borderColor: shade(color, -0.25) }]}>
-      <View style={[s.zoneBar, { backgroundColor: color }]}>
-        <View style={s.zoneIconsLeft}>
-          <IconPill icon="key-outline" colors={colors} />
-          <IconPill icon="bookmark-outline" colors={colors} />
-        </View>
+      <View style={[s.zoneBar, { backgroundColor: color, justifyContent: 'center' }]}>
         <Text style={s.zoneLabel}>{label}</Text>
-        <View style={s.zoneIconsRight}>
-          <IconPill icon="person-outline" colors={colors} />
-          <IconPill icon="bicycle-outline" colors={colors} />
-        </View>
       </View>
     </View>
   );
 }
+
 
 function IconPill({ icon, colors }: { icon: keyof typeof Ionicons.glyphMap; colors: ThemeColors }) {
   return (
@@ -413,42 +402,33 @@ function EmptyState({ text, colors }: { text: string; colors: ThemeColors }) {
   );
 }
 
-/* ---------- helpers de listas ---------- */
-function getUltimasMotos(localizacoes: Localizacao[]) {
-  type LastMoto = {
-    motoId: number;
-    placa?: string | null;
-    patio?: string | null;
-    data?: string | null;
-  };
+/* ---------- lista "ultimos" ---------- */
+function getUltimasMotos(localizacoes: Localizacao[], limit: number = 2) {
+  type LastMoto = { motoId: number; placa?: string | null; patio?: string | null; data?: string | null };
   const byMoto = new Map<number, Localizacao>();
+
   for (const loc of localizacoes) {
     const prev = byMoto.get(loc.motoId);
-    if (!prev) {
-      byMoto.set(loc.motoId, loc);
-      continue;
-    }
+    if (!prev) { byMoto.set(loc.motoId, loc); continue; }
     if (loc.dataHora && prev.dataHora) {
-      if (new Date(loc.dataHora).getTime() > new Date(prev.dataHora).getTime())
-        byMoto.set(loc.motoId, loc);
+      if (new Date(loc.dataHora).getTime() > new Date(prev.dataHora).getTime()) byMoto.set(loc.motoId, loc);
     } else {
       byMoto.set(loc.motoId, loc);
     }
   }
+
   const arr: LastMoto[] = Array.from(byMoto.values()).map((l) => ({
     motoId: l.motoId,
     placa: l.placaMoto ?? undefined,
     patio: l.nomePatio ?? undefined,
     data: l.dataHora ?? null,
   }));
-  arr.sort(
-    (a, b) =>
-      new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime()
-  );
-  return arr.slice(0, 5);
+
+  arr.sort((a, b) => new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime());
+  return arr.slice(0, limit);
 }
 
-function getUltimosBeacons(beacons: Beacon[]) {
+function getUltimosBeacons(beacons: Beacon[], limit: number = 2) {
   const sorted = [...beacons].sort((a, b) => b.id - a.id);
-  return sorted.slice(0, 5);
+  return sorted.slice(0, limit);
 }
