@@ -12,10 +12,12 @@ import { listLocalizacoes, createLocalizacao } from '@/api/mapa';
 import { listBeacons } from '@/api/beacons';
 
 import { getMapaStyles } from '@/styles/mapa';
+import { useI18n } from '@/i18n/I18nProvider';
 
 export default function Mapa() {
   const { colors } = useTheme();
   const s = useMemo(() => getMapaStyles(colors), [colors]);
+  const { t } = useI18n();
 
   const [loading, setLoading] = useState(false);
   const [localizacoes, setLocalizacoes] = useState<Localizacao[]>([]);
@@ -41,8 +43,8 @@ export default function Mapa() {
       setBeacons(bcs);
     } catch (e: any) {
       console.error(e);
-      const msg = e?.message || 'Não foi possível carregar dados do pátio.';
-      Alert.alert('Erro', msg);
+      const msg = e?.message || t('mapa.loadError');
+      Alert.alert(t('common.error'), msg);
     } finally {
       setLoading(false);
     }
@@ -62,13 +64,8 @@ export default function Mapa() {
     const patioToMotos = new Map<number, Set<number>>();
     for (const [, patioId] of motoToPatio.entries()) {
       if (!patioToMotos.has(patioId)) patioToMotos.set(patioId, new Set());
-      patioToMotos.get(patioId)!.add(1 as any); // valor irrelevante; usamos apenas size
+      patioToMotos.get(patioId)!.add(1 as any);
     }
-    // ^ acima é equivalente ao seu add(motoId); se preferir manter motoId real:
-    // for (const [motoId, patioId] of motoToPatio.entries()) {
-    //   if (!patioToMotos.has(patioId)) patioToMotos.set(patioId, new Set());
-    //   patioToMotos.get(patioId)!.add(motoId);
-    // }
 
     const patioToBeacons = new Map<number, number>();
     for (const b of beacons) {
@@ -85,14 +82,15 @@ export default function Mapa() {
 
     const out: Zone[] = Array.from(patioIds).map((id) => ({
       id,
-      label: patioNome.get(id) ?? `Pátio ${id}`,
+      // usa nome vindo da API OU fallback traduzido “Pátio/Patio {{id}}”
+      label: patioNome.get(id) ?? t('home.yard', { id }),
       motos: patioToMotos.get(id)?.size ?? 0,
       beacons: patioToBeacons.get(id) ?? 0,
     }));
 
     out.sort((a, b) => a.id - b.id);
     return out;
-  }, [localizacoes, beacons]);
+  }, [localizacoes, beacons, t]);
 
   const totalMotos = zones.reduce((acc, z) => acc + z.motos, 0);
   const totalBeacons = zones.reduce((acc, z) => acc + z.beacons, 0);
@@ -119,13 +117,13 @@ export default function Mapa() {
     const patioId = Number(form.patioId);
 
     if (!patioId || !motoId || posX == null || posY == null) {
-      Alert.alert('Validação', 'Preencha Moto ID, Posição X e Posição Y corretamente.');
+      Alert.alert(t('common.error'), t('mapa.validation.fillFields'));
       return;
     }
 
     const motoTemBeacon = beacons.some(b => b.motoId === motoId);
     if (!motoTemBeacon) {
-      Alert.alert('Validação', 'Esta moto não possui beacon vinculado.');
+      Alert.alert(t('common.error'), t('mapa.validation.noBeacon'));
       return;
     }
 
@@ -134,19 +132,19 @@ export default function Mapa() {
     try {
       setSaving(true);
       await createLocalizacao(payload);
-      Alert.alert('Sucesso', 'Localização criada.');
+      Alert.alert(t('common.success'), t('mapa.created'));
       setOpen(false);
       setForm({ posicaoX: '', posicaoY: '', motoId: '', patioId: 0 });
       await load();
     } catch (e: any) {
       console.error(e);
       const status = e?.status;
-      const msg = e?.message || 'Não foi possível salvar.';
+      const msg = e?.message || t('mapa.saveError');
 
-      if (status === 409) Alert.alert('Conflito', msg || 'Conflito de dados.');
-      else if (status === 400) Alert.alert('Dados inválidos', msg);
-      else if (status === 404) Alert.alert('Não encontrado', msg);
-      else Alert.alert('Erro', msg);
+      if (status === 409) Alert.alert(t('mapa.conflictTitle'), msg || t('mapa.conflictFallback'));
+      else if (status === 400) Alert.alert(t('mapa.invalidTitle'), msg);
+      else if (status === 404) Alert.alert(t('mapa.notFoundTitle'), msg);
+      else Alert.alert(t('common.error'), msg);
     } finally {
       setSaving(false);
     }
@@ -156,8 +154,8 @@ export default function Mapa() {
     <AppLayout>
       <View style={s.container}>
         <View style={s.headerRow}>
-          <Text style={s.title}>Mapeamento do Pátio</Text>
-          <TouchableOpacity style={s.refreshBtn} onPress={load} accessibilityLabel="Atualizar">
+          <Text style={s.title}>{t('mapa.title')}</Text>
+          <TouchableOpacity style={s.refreshBtn} onPress={load} accessibilityLabel={t('mapa.refresh')}>
             <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -183,7 +181,7 @@ export default function Mapa() {
                   <View style={{ alignItems: 'center' }}>
                     <Text style={s.zoneLabel}>{zone.label}</Text>
                     <Text style={s.zoneSub}>
-                      {zone.motos} motos • {zone.beacons} beacons
+                      {t('mapa.zoneCounts', { motos: zone.motos, beacons: zone.beacons })}
                     </Text>
                   </View>
 
@@ -194,13 +192,13 @@ export default function Mapa() {
                 </TouchableOpacity>
               ))}
               {zones.length === 0 && (
-                <Text style={s.empty}>Nenhum dado encontrado. Cadastre uma localização para começar.</Text>
+                <Text style={s.empty}>{t('mapa.empty')}</Text>
               )}
             </View>
 
             <View style={s.footer}>
               <Text style={s.footerText}>
-                {zones.length} zonas • {totalMotos} motos • {totalBeacons} beacons
+                {t('mapa.footerCounts', { zones: zones.length, motos: totalMotos, beacons: totalBeacons })}
               </Text>
 
               {selected && (
@@ -215,19 +213,19 @@ export default function Mapa() {
                   <View style={s.detailRow}>
                     <Ionicons name="bicycle-outline" size={16} color={colors.muted} />
                     <Text style={s.detailValue}>{selected.motos}</Text>
-                    <Text style={s.detailLabel}> Motos</Text>
+                    <Text style={s.detailLabel}> {t('mapa.motos')}</Text>
                   </View>
                   <View style={s.detailRow}>
                     <Ionicons name="bluetooth-outline" size={16} color={colors.muted} />
                     <Text style={s.detailValue}>{selected.beacons}</Text>
-                    <Text style={s.detailLabel}> Beacons</Text>
+                    <Text style={s.detailLabel}> {t('mapa.beacons')}</Text>
                   </View>
 
                   <TouchableOpacity
                     style={s.primaryBtn}
                     onPress={() => { setForm(f => ({ ...f, patioId: selected.id })); setOpen(true); }}
                   >
-                    <Text style={s.primaryBtnText}>Adicionar Localização</Text>
+                    <Text style={s.primaryBtnText}>{t('mapa.addLocation')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -245,43 +243,43 @@ export default function Mapa() {
           >
             <View style={s.modalCard}>
               <ScrollView contentContainerStyle={s.modalScrollContent}>
-                <Text style={s.modalTitle}>Nova Localização</Text>
+                <Text style={s.modalTitle}>{t('mapa.newTitle')}</Text>
 
-                <Text style={s.fieldLabel}>Pátio ID</Text>
+                <Text style={s.fieldLabel}>{t('mapa.patioId')}</Text>
                 <View style={[s.inputBox, { opacity: 0.8 }]}>
                   <Text style={s.inputText}>{form.patioId || '—'}</Text>
                 </View>
 
-                <Text style={s.fieldLabel}>Moto ID *</Text>
+                <Text style={s.fieldLabel}>{t('mapa.motoIdReq')}</Text>
                 <TextInput
                   style={s.input}
                   value={form.motoId}
-                  onChangeText={(t) => setForm({ ...form, motoId: t.replace(/[^\d]/g, '') })}
+                  onChangeText={(t2) => setForm({ ...form, motoId: t2.replace(/[^\d]/g, '') })}
                   keyboardType="number-pad"
-                  placeholder="ex.: 12"
+                  placeholder={t('mapa.motoIdPh')}
                   placeholderTextColor={colors.muted}
                 />
 
                 <View style={s.row2}>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.fieldLabel}>Posição X *</Text>
+                    <Text style={s.fieldLabel}>{t('mapa.posX')}</Text>
                     <TextInput
                       style={s.input}
                       value={form.posicaoX}
-                      onChangeText={(t) => setForm({ ...form, posicaoX: t })}
+                      onChangeText={(t2) => setForm({ ...form, posicaoX: t2 })}
                       keyboardType="decimal-pad"
-                      placeholder="ex.: 12.34"
+                      placeholder={t('mapa.posXPh')}
                       placeholderTextColor={colors.muted}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={s.fieldLabel}>Posição Y *</Text>
+                    <Text style={s.fieldLabel}>{t('mapa.posY')}</Text>
                     <TextInput
                       style={s.input}
                       value={form.posicaoY}
-                      onChangeText={(t) => setForm({ ...form, posicaoY: t })}
+                      onChangeText={(t2) => setForm({ ...form, posicaoY: t2 })}
                       keyboardType="decimal-pad"
-                      placeholder="ex.: 56.78"
+                      placeholder={t('mapa.posYPh')}
                       placeholderTextColor={colors.muted}
                     />
                   </View>
@@ -289,7 +287,7 @@ export default function Mapa() {
 
                 <View style={s.actionsRow}>
                   <TouchableOpacity onPress={() => setOpen(false)} style={s.btnGhost}>
-                    <Text style={s.btnGhostText}>Cancelar</Text>
+                    <Text style={s.btnGhostText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -297,7 +295,7 @@ export default function Mapa() {
                     disabled={saving}
                     style={[s.btnPrimary, saving && { opacity: 0.6 }]}
                   >
-                    {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>Salvar</Text>}
+                    {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>{t('mapa.save')}</Text>}
                   </TouchableOpacity>
                 </View>
               </ScrollView>
