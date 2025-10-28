@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Linking, Alert } from 'react-native';
 import { useNavigation, useRoute, NavigationProp } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,18 +8,21 @@ import { useTheme } from '@/context/Theme';
 type RouteKey = 'Home' | 'MotoPatio' | 'Beacons' | 'Mapa' | 'Ajustes';
 
 type Item = {
-  key: RouteKey;
+  key: RouteKey | 'Dashboard';
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
-  routeName: RouteKey;
+  routeName?: RouteKey;        // opcional p/ itens de rota
+  externalUrl?: string;        // opcional p/ itens externos
 };
 
 const ITEMS: Item[] = [
-  { key: 'Home',      label: 'Início',  icon: 'home-outline',     routeName: 'Home' },
-  { key: 'MotoPatio', label: 'Motos',   icon: 'bicycle-outline',  routeName: 'MotoPatio' },
-  { key: 'Beacons',   label: 'Beacons', icon: 'wifi-outline',     routeName: 'Beacons' },
-  { key: 'Mapa',      label: 'Mapa',    icon: 'map-outline',      routeName: 'Mapa' },
-  { key: 'Ajustes',    label: 'Ajustes',  icon: 'settings-outline', routeName: 'Ajustes' },
+  { key: 'Home',      label: 'Início',     icon: 'home-outline',        routeName: 'Home' },
+  { key: 'MotoPatio', label: 'Motos',      icon: 'bicycle-outline',     routeName: 'MotoPatio' },
+  { key: 'Beacons',   label: 'Beacons',    icon: 'wifi-outline',        routeName: 'Beacons' },
+  { key: 'Mapa',      label: 'Mapa',       icon: 'map-outline',         routeName: 'Mapa' },
+  { key: 'Ajustes',   label: 'Ajustes',    icon: 'settings-outline',    routeName: 'Ajustes' },
+  // --- novo botão externo (abre o Streamlit) ---
+  { key: 'Dashboard', label: 'Dashboard',  icon: 'stats-chart-outline', externalUrl: 'https://mottooth-iot-dashboard.streamlit.app' },
 ];
 
 export default function Bar() {
@@ -31,14 +34,33 @@ export default function Bar() {
 
   const activeKey = useMemo<RouteKey | null>(() => {
     const current = ITEMS.find(i => i.routeName === route.name);
-    return current?.key ?? null;
+    return (current?.key as RouteKey) ?? null;
   }, [route.name]);
+
+  const handlePress = async (item: Item) => {
+    if (item.externalUrl) {
+      try {
+        const supported = await Linking.canOpenURL(item.externalUrl);
+        if (supported) {
+          await Linking.openURL(item.externalUrl);
+        } else {
+          Alert.alert('Não foi possível abrir o link.', item.externalUrl);
+        }
+      } catch (e) {
+        Alert.alert('Erro ao abrir o link.', 'Tente novamente mais tarde.');
+      }
+      return;
+    }
+    if (item.routeName) {
+      navigation.navigate(item.routeName as never);
+    }
+  };
 
   return (
     <View style={styles.wrapper}>
       <View style={styles.container}>
         {ITEMS.map(item => {
-          const isActive = item.key === activeKey;
+          const isActive = item.key === activeKey;       // itens externos nunca ficam ativos
           const color = isActive ? colors.primary : colors.muted;
 
           return (
@@ -46,14 +68,14 @@ export default function Bar() {
               key={item.key}
               style={styles.item}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate(item.routeName as never)}
+              onPress={() => handlePress(item)}
               accessibilityRole="button"
               accessibilityState={{ selected: isActive }}
               accessibilityLabel={item.label}
             >
               <Ionicons name={item.icon} size={22} color={color} />
               <Text style={[styles.label, { color }]}>{item.label}</Text>
-              {isActive && <View style={[styles.dot, { backgroundColor:colors.primary }]} />}
+              {isActive && <View style={[styles.dot, { backgroundColor: colors.primary }]} />}
             </TouchableOpacity>
           );
         })}
