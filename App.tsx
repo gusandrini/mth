@@ -10,6 +10,7 @@ import MotoPatio from '@/screens/MotoPatio';
 import Beacons from '@/screens/Beacons';
 import Mapa from '@/screens/Mapa';
 import Config from '@/screens/Config';
+import RegisterScreen from '@/screens/Cadastro';
 import { I18nProvider } from "@/i18n/I18nProvider";
 
 const Stack = createNativeStackNavigator();
@@ -26,6 +27,7 @@ function Routes() {
           <Stack.Screen name="Beacons" component={Beacons} />
           <Stack.Screen name="Mapa" component={Mapa} /> 
           <Stack.Screen name="Ajustes" component={Config} />
+          <Stack.Screen name="Register" component={RegisterScreen} options={{ headerShown: false }} />
         </Stack.Navigator>
       </NavigationContainer>
     </I18nProvider>

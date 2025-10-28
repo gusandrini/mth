@@ -81,9 +81,10 @@ export default function LoginScreen() {
           {loading ? <ActivityIndicator color="#fff" /> : <Text style={s.btnText}>Entrar</Text>}
         </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => Alert.alert('Cadastro', 'Função de cadastro em desenvolvimento.')}>
+        <TouchableOpacity onPress={() => navigation.navigate('Register' as never)}>
           <Text style={s.registerLink}>Criar uma conta</Text>
         </TouchableOpacity>
+
       </View>
     </View>
   );
