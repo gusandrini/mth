@@ -27,13 +27,22 @@ export default function Config() {
     session = null;
   }
 
-  const isAuthenticated = !!session?.isAuthenticated;
+  // Use uma checagem mais permissiva: se não houver provider, considere "desconhecido"
+  const isAuthenticated = session?.isAuthenticated === true;
 
   /** ==================== LOGOUT ==================== */
+  const navigateToLogin = () => {
+    try {
+      navigation.reset?.({ index: 0, routes: [{ name: 'Login' as never }] });
+    } catch (e) {
+      console.warn('Falha ao navegar para Login:', e);
+    }
+  };
+
   const handleLogout = () => {
     Alert.alert(
-      t('settings.logout'), // título
-      t('settings.confirmLogout'), // mensagem
+      t('settings.logout'),
+      t('settings.confirmLogout'),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -42,13 +51,17 @@ export default function Config() {
           onPress: async () => {
             try {
               if (session?.logout) {
+                // Fluxo preferencial: provedor de sessão
                 await session.logout();
               } else {
+                // Fallback: limpar storage e header
                 await AsyncStorage.multiRemove([TOKEN_KEY, USERNAME_KEY]);
-                delete (apiClient.defaults.headers.common as any).Authorization;
+                try {
+                  delete (apiClient.defaults.headers.common as any).Authorization;
+                } catch {}
               }
               Alert.alert(t('common.success'), t('settings.loggedOutFallback'));
-              navigation.reset({ index: 0, routes: [{ name: 'Login' as never }] });
+              navigateToLogin();
             } catch (e) {
               console.error(e);
               Alert.alert(t('common.error'), t('settings.logoutFailedFallback'));
@@ -61,7 +74,7 @@ export default function Config() {
 
   /** ==================== IDIOMA ==================== */
   const handleLanguageToggle = async () => {
-    const newLocale = locale.startsWith('pt') ? 'es-ES' : 'pt-BR';
+    const newLocale = locale?.startsWith('pt') ? 'es-ES' : 'pt-BR';
     await setLocale(newLocale);
 
     Alert.alert(
@@ -104,9 +117,7 @@ export default function Config() {
             <View style={s.rowLeft}>
               <Ionicons name="language-outline" size={18} color={colors.text} />
               <Text style={[s.label, { marginLeft: 8 }]}>
-                {locale.startsWith('pt')
-                  ? 'Português (Brasil)'
-                  : 'Español (España)'}
+                {locale?.startsWith('pt') ? 'Português (Brasil)' : 'Español (España)'}
               </Text>
             </View>
             <Ionicons
@@ -117,11 +128,10 @@ export default function Config() {
           </TouchableOpacity>
         </View>
 
-        {/* Logout */}
+        {/* Logout — sempre clicável; se não autenticado, só aplica opacidade visual */}
         <TouchableOpacity
           style={[s.btnDanger, !isAuthenticated && { opacity: 0.6 }]}
           onPress={handleLogout}
-          disabled={!isAuthenticated}
           accessibilityLabel={t('settings.logout')}
         >
           <Ionicons name="log-out-outline" size={18} color="#fff" />
