@@ -11,10 +11,12 @@ import { Beacon, BeaconForm } from '@/models/beacons';
 import { listBeacons, getBeacon, createBeacon, updateBeacon, deleteBeacon } from '@/api/beacons';
 
 import { getBeaconsStyles } from '@/styles/beacons';
+import { useI18n } from '@/i18n/I18nProvider'; // 👈 i18n
 
 export default function Beacons() {
   const { colors } = useTheme();
   const s = useMemo(() => getBeaconsStyles(colors), [colors]);
+  const { t } = useI18n();
 
   const [query, setQuery] = useState('');
   const [data, setData] = useState<Beacon[]>([]);
@@ -34,11 +36,11 @@ export default function Beacons() {
       setData(items);
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível carregar os beacons.');
+      Alert.alert(t('common.error'), t('beacons.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -68,20 +70,20 @@ export default function Beacons() {
       });
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível carregar o beacon.');
+      Alert.alert(t('common.error'), t('beacons.loadOneError'));
       setOpen(false);
     }
-  }, []);
+  }, [t]);
 
   const onSave = useCallback(async () => {
     if (!form.uuid.trim()) {
-      Alert.alert('Validação', 'UUID é obrigatório.');
+      Alert.alert(t('common.error'), t('beacons.validation.uuidReq'));
       return;
     }
     if (form.bateria) {
       const n = Number(form.bateria);
       if (Number.isNaN(n) || n < 0 || n > 100) {
-        Alert.alert('Validação', 'Bateria deve ser um número entre 0 e 100.');
+        Alert.alert(t('common.error'), t('beacons.validation.batteryRange'));
         return;
       }
     }
@@ -90,40 +92,44 @@ export default function Beacons() {
       setSaving(true);
       if (editingId) {
         await updateBeacon(editingId, form);
-        Alert.alert('Sucesso', 'Beacon atualizado.');
+        Alert.alert(t('common.success'), t('beacons.updated'));
       } else {
         await createBeacon(form);
-        Alert.alert('Sucesso', 'Beacon criado.');
+        Alert.alert(t('common.success'), t('beacons.created'));
       }
       setOpen(false);
       await load();
     } catch (e: any) {
       console.error(e?.response?.data || e);
-      const msg = e?.response?.data?.message || 'Não foi possível salvar.';
-      Alert.alert('Erro', msg);
+      const msg = e?.response?.data?.message || t('beacons.saveError');
+      Alert.alert(t('common.error'), msg);
     } finally {
       setSaving(false);
     }
-  }, [editingId, form, load]);
+  }, [editingId, form, load, t]);
 
   const onDelete = useCallback((b: Beacon) => {
-    Alert.alert('Excluir', `Deseja excluir o beacon ${b.uuid}?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteBeacon(b.id);
-            await load();
-          } catch (e) {
-            console.error(e);
-            Alert.alert('Erro', 'Não foi possível excluir.');
-          }
+    Alert.alert(
+      t('beacons.deleteTitle'),
+      t('beacons.deleteMsg', { uuid: b.uuid }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('beacons.deleteConfirm'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteBeacon(b.id);
+              await load();
+            } catch (e) {
+              console.error(e);
+              Alert.alert(t('common.error'), t('beacons.deleteError'));
+            }
+          },
         },
-      },
-    ]);
-  }, [load]);
+      ],
+    );
+  }, [load, t]);
 
   /** ===== List item ===== */
   const renderItem: ListRenderItem<Beacon> = useCallback(({ item }) => (
@@ -148,16 +154,16 @@ export default function Beacons() {
 
       <View style={s.rightCol}>
         <View style={s.actions}>
-          <TouchableOpacity style={s.iconBtn} onPress={() => openEdit(item)} accessibilityLabel="Editar">
+          <TouchableOpacity style={s.iconBtn} onPress={() => openEdit(item)} accessibilityLabel={t('beacons.edit')}>
             <Ionicons name="pencil-outline" size={18} color={colors.muted} />
           </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={() => onDelete(item)} accessibilityLabel="Excluir">
+          <TouchableOpacity style={s.iconBtn} onPress={() => onDelete(item)} accessibilityLabel={t('beacons.delete')}>
             <Ionicons name="trash-outline" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </View>
     </View>
-  ), [colors.muted, onDelete, openEdit, s]);
+  ), [colors.muted, onDelete, openEdit, s, t]);
 
   const total = filtered.length;
 
@@ -175,7 +181,7 @@ export default function Beacons() {
             <Ionicons name="search-outline" size={16} color={colors.muted} style={s.searchIcon} />
             <TextInput
               style={s.input}
-              placeholder="Buscar por UUID..."
+              placeholder={t('beacons.searchPlaceholder')}
               placeholderTextColor={colors.muted}
               value={query}
               onChangeText={setQuery}
@@ -183,7 +189,7 @@ export default function Beacons() {
             />
           </View>
 
-          <TouchableOpacity style={s.filterBtn} onPress={load} accessibilityLabel="Atualizar lista">
+          <TouchableOpacity style={s.filterBtn} onPress={load} accessibilityLabel={t('beacons.refresh')}>
             <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -198,12 +204,12 @@ export default function Beacons() {
             renderItem={renderItem}
             contentContainerStyle={s.listContent}
             ItemSeparatorComponent={() => <View style={s.sep} />}
-            ListEmptyComponent={<Text style={s.empty}>Nenhum beacon cadastrado</Text>}
+            ListEmptyComponent={<Text style={s.empty}>{t('beacons.empty')}</Text>}
           />
         )}
 
         {/* FAB (+) */}
-        <TouchableOpacity style={s.fab} onPress={openNew} accessibilityLabel="Novo beacon">
+        <TouchableOpacity style={s.fab} onPress={openNew} accessibilityLabel={t('beacons.new')}>
           <Ionicons name="add" size={24} color="#0b0b0b" />
         </TouchableOpacity>
       </View>
@@ -217,38 +223,38 @@ export default function Beacons() {
           >
             <View style={s.modalCard}>
               <ScrollView contentContainerStyle={s.modalScrollContent}>
-                <Text style={s.modalTitle}>{editingId ? 'Editar Beacon' : 'Novo Beacon'}</Text>
+                <Text style={s.modalTitle}>{editingId ? t('beacons.editTitle') : t('beacons.newTitle')}</Text>
 
                 {/* UUID */}
                 <Field label="UUID">
                   <TextInput
                     style={s.fieldInput}
                     value={form.uuid}
-                    onChangeText={(t) => setForm({ ...form, uuid: t })}
-                    placeholder="ex.: B-000123-XYZ"
+                    onChangeText={(t2) => setForm({ ...form, uuid: t2 })}
+                    placeholder={t('beacons.uuidPlaceholder')}
                     placeholderTextColor={colors.muted}
                     autoCapitalize="none"
                   />
                 </Field>
 
                 {/* Bateria */}
-                <Field label="Bateria (0–100)">
+                <Field label={t('beacons.battery')}>
                   <TextInput
                     style={s.fieldInput}
                     value={form.bateria ?? ''}
-                    onChangeText={(t) => setForm({ ...form, bateria: t.replace(/[^\d]/g, '') })}
+                    onChangeText={(t2) => setForm({ ...form, bateria: t2.replace(/[^\d]/g, '') })}
                     keyboardType="number-pad"
-                    placeholder="ex.: 75"
+                    placeholder="0–100"
                     placeholderTextColor={colors.muted}
                   />
                 </Field>
 
                 {/* Moto ID */}
-                <Field label="Moto ID">
+                <Field label={t('beacons.motoId')}>
                   <TextInput
                     style={s.fieldInput}
                     value={form.motoId ?? ''}
-                    onChangeText={(t) => setForm({ ...form, motoId: t.replace(/[^\d]/g, '') })}
+                    onChangeText={(t2) => setForm({ ...form, motoId: t2.replace(/[^\d]/g, '') })}
                     keyboardType="number-pad"
                     placeholder="ex.: 12"
                     placeholderTextColor={colors.muted}
@@ -256,11 +262,11 @@ export default function Beacons() {
                 </Field>
 
                 {/* Modelo Beacon ID */}
-                <Field label="Modelo Beacon ID">
+                <Field label={t('beacons.modelId')}>
                   <TextInput
                     style={s.fieldInput}
                     value={form.modeloBeaconId ?? ''}
-                    onChangeText={(t) => setForm({ ...form, modeloBeaconId: t.replace(/[^\d]/g, '') })}
+                    onChangeText={(t2) => setForm({ ...form, modeloBeaconId: t2.replace(/[^\d]/g, '') })}
                     keyboardType="number-pad"
                     placeholder="ex.: 5"
                     placeholderTextColor={colors.muted}
@@ -270,11 +276,11 @@ export default function Beacons() {
                 {/* Ações */}
                 <View style={s.actionsRow}>
                   <TouchableOpacity onPress={() => setOpen(false)} style={s.btnGhost}>
-                    <Text style={s.btnGhostText}>Cancelar</Text>
+                    <Text style={s.btnGhostText}>{t('common.cancel')}</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity onPress={onSave} disabled={saving} style={[s.btnPrimary, saving && { opacity: 0.6 }]}>
-                    {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>Salvar</Text>}
+                    {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>{t('beacons.save')}</Text>}
                   </TouchableOpacity>
                 </View>
               </ScrollView>

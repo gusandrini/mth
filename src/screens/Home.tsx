@@ -23,7 +23,7 @@ type RootStack = Record<string, object | undefined>;
 export default function Home() {
   const navigation = useNavigation<NavigationProp<RootStack>>();
   const { colors } = useTheme();
-  const { t } = useI18n(); // 🔸 usar t() pra tudo
+  const { t } = useI18n(); // usar t() para tudo
   const s = useMemo(() => getHomeStyles(colors), [colors]);
 
   // estado
@@ -89,7 +89,7 @@ export default function Home() {
 
     const out: Zone[] = Array.from(patioIds).map((id) => ({
       id,
-      label: patioNome.get(id) ?? t('home.yard', { id }), // 🔸 “Pátio 1” / “Patio 1”
+      label: patioNome.get(id) ?? t('home.yard', { id }), // “Pátio 1” / “Patio 1”
       motos: patioToMotos.get(id)?.size ?? 0,
       beacons: patioToBeacons.get(id) ?? 0,
     }));
@@ -98,20 +98,26 @@ export default function Home() {
     return out;
   }, [localizacoes, beacons, t]);
 
-  const motosNoPatio = useMemo(() => new Set(localizacoes.map(l => l.motoId)).size, [localizacoes]);
+  const motosNoPatio = useMemo(
+    () => new Set(localizacoes.map((l) => l.motoId)).size,
+    [localizacoes]
+  );
   const beaconsAtivos = beacons.length;
 
-  const zonePalette = useMemo(() => ([
-    colors.primary,
-    shade(colors.primary, -0.1),
-    shade(colors.primary, -0.2),
-    shade(colors.primary, -0.3),
-    shade(colors.primary, -0.4),
-  ]), [colors.primary]);
+  const zonePalette = useMemo(
+    () => [
+      colors.primary,
+      shade(colors.primary, -0.1),
+      shade(colors.primary, -0.2),
+      shade(colors.primary, -0.3),
+      shade(colors.primary, -0.4),
+    ],
+    [colors.primary]
+  );
 
-  // helpers de label localizadas
-  const kpiMotosHighlight = `${motosNoPatio} ${t('home.kpiMotosSuffix')}`;        // “no Pátio” / “en el Patio”
-  const kpiBeaconsHighlight = `${beaconsAtivos} ${t('home.kpiBeaconsSuffix')}`;   // “Ativos” / “Activos”
+  // labels localizadas
+  const kpiMotosHighlight = `${motosNoPatio} ${t('home.kpiMotosSuffix')}`;      // “no Pátio” / “en el Patio”
+  const kpiBeaconsHighlight = `${beaconsAtivos} ${t('home.kpiBeaconsSuffix')}`; // “Ativos” / “Activos”
 
   const zoneCountsLabel = (z: Zone) =>
     t('home.zoneCounts', { label: z.label, motos: z.motos, beacons: z.beacons });
@@ -121,7 +127,13 @@ export default function Home() {
       <View style={s.screen}>
         <ScrollView
           contentContainerStyle={s.content}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+            />
+          }
         >
           {/* Header */}
           <View style={s.header}>
@@ -154,7 +166,17 @@ export default function Home() {
               <Text style={{ color: '#ff6b6b', fontWeight: '700' }}>{error}</Text>
               <TouchableOpacity
                 onPress={load}
-                style={{ marginTop: 8, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 6 }}
+                style={{
+                  marginTop: 8,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
               >
                 <Ionicons name="refresh-outline" size={14} color={colors.text} />
                 <Text style={{ color: colors.text, fontWeight: '700' }}>
@@ -169,7 +191,11 @@ export default function Home() {
             title={t('home.mapSummary')}
             rightAction={t('home.seeMap')}
             onPressRight={() => navigation.navigate('Mapa' as never)}
-            leftIcons={[{ name: 'grid-outline' as const }, { name: 'construct-outline' as const }, { name: 'bicycle-outline' as const }]}
+            leftIcons={[
+              { name: 'grid-outline' as const },
+              { name: 'construct-outline' as const },
+              { name: 'bicycle-outline' as const },
+            ]}
             colors={colors}
           />
           <View style={s.mapResumeContainer}>
@@ -207,7 +233,9 @@ export default function Home() {
                   key={m.motoId}
                   leftIcon="bicycle-outline"
                   title={m.placa || t('home.bikeNumber', { id: m.motoId })}
-                  subtitle={m.patio ? t('home.yardLabel', { name: m.patio }) : undefined}
+                  subtitle={
+                    m.patio ? t('home.yardLabel', { name: m.patio }) : undefined
+                  }
                   colors={colors}
                 />
               ))}
@@ -236,8 +264,8 @@ export default function Home() {
                     b.placaMoto
                       ? t('home.bikeLabel', { plate: b.placaMoto })
                       : b.motoId
-                        ? t('home.bikeNumber', { id: b.motoId })
-                        : undefined
+                      ? t('home.bikeNumber', { id: b.motoId })
+                      : undefined
                   }
                   colors={colors}
                 />
@@ -258,7 +286,13 @@ export default function Home() {
 
 function KpiCard({
   title, highlight, icon, align = 'left', colors,
-}: { title: string; highlight: string; icon: keyof typeof Ionicons.glyphMap; align?: 'left' | 'right'; colors: ThemeColors; }) {
+}: {
+  title: string;
+  highlight: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  align?: 'left' | 'right';
+  colors: ThemeColors;
+}) {
   const s = useMemo(() => getHomeStyles(colors), [colors]);
   return (
     <View style={[s.kpiCard, align === 'right' && { alignItems: 'flex-end' }]}>
@@ -294,7 +328,13 @@ function SectionHeader({
         {!!leftIcons?.length && (
           <View style={s.inlineIcons}>
             {leftIcons.map((it, idx) => (
-              <Ionicons key={idx} name={it.name} size={16} color={colors.muted} style={{ marginLeft: 8 }} />
+              <Ionicons
+                key={idx}
+                name={it.name}
+                size={16}
+                color={colors.muted}
+                style={{ marginLeft: 8 }}
+              />
             ))}
           </View>
         )}
@@ -335,7 +375,14 @@ function IconPill({ icon, colors }: { icon: keyof typeof Ionicons.glyphMap; colo
   );
 }
 
-function ListRow({ leftIcon, title, subtitle, colors }: { leftIcon: keyof typeof Ionicons.glyphMap; title: string; subtitle?: string; colors: ThemeColors }) {
+function ListRow({
+  leftIcon, title, subtitle, colors,
+}: {
+  leftIcon: keyof typeof Ionicons.glyphMap;
+  title: string;
+  subtitle?: string;
+  colors: ThemeColors;
+}) {
   const s = useMemo(() => getHomeStyles(colors), [colors]);
   return (
     <View style={s.rowCard}>
@@ -344,8 +391,12 @@ function ListRow({ leftIcon, title, subtitle, colors }: { leftIcon: keyof typeof
           <Ionicons name={leftIcon} size={14} color={colors.text} />
         </View>
         <View>
-          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>{title}</Text>
-          {!!subtitle && <Text style={{ color: colors.muted, fontSize: 11 }}>{subtitle}</Text>}
+          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 13 }}>
+            {title}
+          </Text>
+          {!!subtitle && (
+            <Text style={{ color: colors.muted, fontSize: 11 }}>{subtitle}</Text>
+          )}
         </View>
       </View>
       <Ionicons name="chevron-forward-outline" size={16} color={colors.muted} />
@@ -364,21 +415,36 @@ function EmptyState({ text, colors }: { text: string; colors: ThemeColors }) {
 
 /* ---------- helpers de listas ---------- */
 function getUltimasMotos(localizacoes: Localizacao[]) {
-  type LastMoto = { motoId: number; placa?: string | null; patio?: string | null; data?: string | null };
+  type LastMoto = {
+    motoId: number;
+    placa?: string | null;
+    patio?: string | null;
+    data?: string | null;
+  };
   const byMoto = new Map<number, Localizacao>();
   for (const loc of localizacoes) {
     const prev = byMoto.get(loc.motoId);
-    if (!prev) { byMoto.set(loc.motoId, loc); continue; }
+    if (!prev) {
+      byMoto.set(loc.motoId, loc);
+      continue;
+    }
     if (loc.dataHora && prev.dataHora) {
-      if (new Date(loc.dataHora).getTime() > new Date(prev.dataHora).getTime()) byMoto.set(loc.motoId, loc);
+      if (new Date(loc.dataHora).getTime() > new Date(prev.dataHora).getTime())
+        byMoto.set(loc.motoId, loc);
     } else {
       byMoto.set(loc.motoId, loc);
     }
   }
   const arr: LastMoto[] = Array.from(byMoto.values()).map((l) => ({
-    motoId: l.motoId, placa: l.placaMoto ?? undefined, patio: l.nomePatio ?? undefined, data: l.dataHora ?? null,
+    motoId: l.motoId,
+    placa: l.placaMoto ?? undefined,
+    patio: l.nomePatio ?? undefined,
+    data: l.dataHora ?? null,
   }));
-  arr.sort((a, b) => (new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime()));
+  arr.sort(
+    (a, b) =>
+      new Date(b.data || 0).getTime() - new Date(a.data || 0).getTime()
+  );
   return arr.slice(0, 5);
 }
 

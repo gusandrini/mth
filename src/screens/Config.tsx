@@ -29,10 +29,11 @@ export default function Config() {
 
   const isAuthenticated = !!session?.isAuthenticated;
 
+  /** ==================== LOGOUT ==================== */
   const handleLogout = () => {
     Alert.alert(
-      t('settings.logout'),
-      t('settings.confirmLogout'),
+      t('settings.logout'), // título
+      t('settings.confirmLogout'), // mensagem
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
@@ -46,11 +47,11 @@ export default function Config() {
                 await AsyncStorage.multiRemove([TOKEN_KEY, USERNAME_KEY]);
                 delete (apiClient.defaults.headers.common as any).Authorization;
               }
-              Alert.alert(t('common.success'), t('common.loggedOut'));
+              Alert.alert(t('common.success'), t('settings.loggedOutFallback'));
               navigation.reset({ index: 0, routes: [{ name: 'Login' as never }] });
             } catch (e) {
               console.error(e);
-              Alert.alert(t('common.error'), t('common.logoutFailed'));
+              Alert.alert(t('common.error'), t('settings.logoutFailedFallback'));
             }
           },
         },
@@ -58,7 +59,7 @@ export default function Config() {
     );
   };
 
-  // 🔁 Alterna pt-BR <-> es-ES e persiste
+  /** ==================== IDIOMA ==================== */
   const handleLanguageToggle = async () => {
     const newLocale = locale.startsWith('pt') ? 'es-ES' : 'pt-BR';
     await setLocale(newLocale);
@@ -71,6 +72,7 @@ export default function Config() {
     );
   };
 
+  /** ==================== RENDER ==================== */
   return (
     <AppLayout>
       <View style={s.container}>
@@ -102,10 +104,16 @@ export default function Config() {
             <View style={s.rowLeft}>
               <Ionicons name="language-outline" size={18} color={colors.text} />
               <Text style={[s.label, { marginLeft: 8 }]}>
-                {locale.startsWith('pt') ? 'Português (Brasil)' : 'Español (España)'}
+                {locale.startsWith('pt')
+                  ? 'Português (Brasil)'
+                  : 'Español (España)'}
               </Text>
             </View>
-            <Ionicons name="swap-horizontal-outline" size={18} color={colors.muted} />
+            <Ionicons
+              name="swap-horizontal-outline"
+              size={18}
+              color={colors.muted}
+            />
           </TouchableOpacity>
         </View>
 
@@ -114,6 +122,7 @@ export default function Config() {
           style={[s.btnDanger, !isAuthenticated && { opacity: 0.6 }]}
           onPress={handleLogout}
           disabled={!isAuthenticated}
+          accessibilityLabel={t('settings.logout')}
         >
           <Ionicons name="log-out-outline" size={18} color="#fff" />
           <Text style={s.btnDangerText}>{t('settings.logout')}</Text>
