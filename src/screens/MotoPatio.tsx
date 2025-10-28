@@ -15,8 +15,11 @@ import { listMotos, createMoto, updateMoto, deleteMoto } from '@/api/moto';
 import type { Beacon } from '@/models/beacons';
 import { listBeacons } from '@/api/beacons';
 
+import { useI18n } from '@/i18n/I18nProvider';
+
 export default function MotoPatio() {
   const { colors } = useTheme();
+  const { t } = useI18n();
   const s = useMemo(() => getMotoPatioStyles(colors), [colors]);
 
   const [motos, setMotos] = useState<Moto[]>([]);
@@ -38,22 +41,22 @@ export default function MotoPatio() {
       setBeacons(beaconsRes);
     } catch (e) {
       console.error(e);
-      Alert.alert('Erro', 'Não foi possível carregar os dados.');
+      Alert.alert(t('common.error'), t('motos.loadError'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
-    const s = q.trim().toUpperCase();
-    if (!s) return motos;
+    const sTerm = q.trim().toUpperCase();
+    if (!sTerm) return motos;
     return motos.filter(
       (m) =>
-        m.placa.toUpperCase().includes(s) ||
-        (m.modeloNome ?? '').toUpperCase().includes(s) ||
-        (m.fabricante ?? '').toUpperCase().includes(s)
+        m.placa.toUpperCase().includes(sTerm) ||
+        (m.modeloNome ?? '').toUpperCase().includes(sTerm) ||
+        (m.fabricante ?? '').toUpperCase().includes(sTerm)
     );
   }, [motos, q]);
 
@@ -74,23 +77,27 @@ export default function MotoPatio() {
   }, []);
 
   const handleDelete = useCallback((m: Moto) => {
-    Alert.alert('Excluir', `Excluir moto ${m.placa}?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Excluir',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteMoto(m.id);
-            await load();
-          } catch (e) {
-            console.error(e);
-            Alert.alert('Erro', 'Não foi possível excluir.');
-          }
+    Alert.alert(
+      t('motos.deleteTitle'),
+      t('motos.deleteMsg', { plate: m.placa }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('motos.deleteConfirm'),
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMoto(m.id);
+              await load();
+            } catch (e) {
+              console.error(e);
+              Alert.alert(t('common.error'), t('motos.deleteError'));
+            }
+          },
         },
-      },
-    ]);
-  }, [load]);
+      ]
+    );
+  }, [load, t]);
 
   const onSave = useCallback(async () => {
     const placa = form.placa?.trim().toUpperCase();
@@ -98,7 +105,7 @@ export default function MotoPatio() {
     const modeloMotoId = Number(form.modeloMotoId);
 
     if (!placa || !clienteId || !modeloMotoId) {
-      Alert.alert('Validação', 'Preencha todos os campos obrigatórios.');
+      Alert.alert(t('common.error'), t('motos.validation.fillRequired'));
       return;
     }
 
@@ -106,20 +113,20 @@ export default function MotoPatio() {
       setSaving(true);
       if (edit) {
         await updateMoto(edit.id, form);
-        Alert.alert('Atualizado', 'Moto atualizada com sucesso.');
+        Alert.alert(t('common.success'), t('motos.updated'));
       } else {
         await createMoto(form);
-        Alert.alert('Cadastrada', 'Moto cadastrada com sucesso.');
+        Alert.alert(t('common.success'), t('motos.created'));
       }
       setOpen(false);
       await load();
     } catch (e: any) {
       console.error(e?.response?.data || e);
-      Alert.alert('Erro', e?.response?.data?.message || 'Falha ao salvar.');
+      Alert.alert(t('common.error'), e?.response?.data?.message || t('motos.saveError'));
     } finally {
       setSaving(false);
     }
-  }, [edit, form, load]);
+  }, [edit, form, load, t]);
 
   const getBeaconByMoto = useCallback(
     (motoId: number) => beacons.find((b) => b.motoId === motoId)?.uuid ?? null,
@@ -130,12 +137,12 @@ export default function MotoPatio() {
     <View style={s.row}>
       <View style={{ flex: 1 }}>
         <Text style={s.model}>
-          {item.modeloNome ?? 'Sem modelo'} • {item.fabricante ?? '—'}
+          {(item.modeloNome ?? t('motos.noModel'))} • {item.fabricante ?? '—'}
         </Text>
         <Text style={s.meta}>
-          Placa: <Text style={s.metaStrong}>{item.placa}</Text>
+          {t('motos.plate')}: <Text style={s.metaStrong}>{item.placa}</Text>
         </Text>
-        <Text style={s.meta}>Cliente ID: {item.clienteId}</Text>
+        <Text style={s.meta}>{t('motos.clientId')}: {item.clienteId}</Text>
 
         {getBeaconByMoto(item.id) && (
           <View style={s.beaconLine}>
@@ -147,36 +154,38 @@ export default function MotoPatio() {
 
       <View style={s.rightCol}>
         <View style={s.actions}>
-          <TouchableOpacity onPress={() => handleEdit(item)} style={s.iconBtn}>
+          <TouchableOpacity onPress={() => handleEdit(item)} style={s.iconBtn} accessibilityLabel={t('motos.edit')}>
             <Ionicons name="pencil-outline" size={18} color={colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleDelete(item)} style={s.iconBtn}>
+          <TouchableOpacity onPress={() => handleDelete(item)} style={s.iconBtn} accessibilityLabel={t('motos.delete')}>
             <Ionicons name="trash-outline" size={18} color="#EF4444" />
           </TouchableOpacity>
         </View>
       </View>
     </View>
-  ), [colors.muted, getBeaconByMoto, handleDelete, handleEdit, s]);
+  ), [colors.muted, getBeaconByMoto, handleDelete, handleEdit, s, t]);
+
+  const total = filtered.length;
 
   return (
     <AppLayout>
       <View style={s.container}>
-        <Text style={s.title}>Motos no Pátio</Text>
-        <Text style={s.subtitle}>{filtered.length} motos</Text>
+        <Text style={s.title}>{t('motos.title')}</Text>
+        <Text style={s.subtitle}>{t('motos.count', { count: total })}</Text>
 
         <View style={s.searchRow}>
           <View style={s.searchBox}>
             <Ionicons name="search-outline" size={16} color={colors.muted} style={s.searchIcon} />
             <TextInput
               style={s.input}
-              placeholder="Buscar por placa, modelo, fabricante..."
+              placeholder={t('motos.searchPlaceholder')}
               placeholderTextColor={colors.muted}
               value={q}
               onChangeText={setQ}
               autoCapitalize="characters"
             />
           </View>
-          <TouchableOpacity style={s.filterBtn} onPress={load} accessibilityLabel="Atualizar lista">
+          <TouchableOpacity style={s.filterBtn} onPress={load} accessibilityLabel={t('motos.refresh')}>
             <Ionicons name="refresh-outline" size={18} color={colors.text} />
           </TouchableOpacity>
         </View>
@@ -190,10 +199,11 @@ export default function MotoPatio() {
             renderItem={renderItem}
             ItemSeparatorComponent={() => <View style={s.sep} />}
             contentContainerStyle={s.listContent}
+            ListEmptyComponent={<Text style={s.empty}>{t('motos.empty')}</Text>}
           />
         )}
 
-        <TouchableOpacity style={s.fab} onPress={handleAdd} accessibilityLabel="Nova moto">
+        <TouchableOpacity style={s.fab} onPress={handleAdd} accessibilityLabel={t('motos.new')}>
           <Ionicons name="add" size={24} color="#0b0b0b" />
         </TouchableOpacity>
 
@@ -206,47 +216,47 @@ export default function MotoPatio() {
             >
               <View style={s.modalCard}>
                 <ScrollView contentContainerStyle={s.modalScrollContent}>
-                  <Text style={s.modalTitle}>{edit ? 'Editar Moto' : 'Nova Moto'}</Text>
+                  <Text style={s.modalTitle}>{edit ? t('motos.editTitle') : t('motos.newTitle')}</Text>
 
-                  <Text style={s.fieldLabel}>Placa *</Text>
+                  <Text style={s.fieldLabel}>{t('motos.plateReq')}</Text>
                   <TextInput
                     style={s.input}
                     value={form.placa}
-                    onChangeText={(t) => setForm({ ...form, placa: t.replace(/[^A-Za-z0-9]/g, '').toUpperCase() })}
-                    placeholder="ABC1234"
+                    onChangeText={(tVal) => setForm({ ...form, placa: tVal.replace(/[^A-Za-z0-9]/g, '').toUpperCase() })}
+                    placeholder={t('motos.platePh')}
                     placeholderTextColor={colors.muted}
                   />
 
-                  <Text style={s.fieldLabel}>Cliente ID *</Text>
+                  <Text style={s.fieldLabel}>{t('motos.clientIdReq')}</Text>
                   <TextInput
                     style={s.input}
                     value={form.clienteId}
-                    onChangeText={(t) => setForm({ ...form, clienteId: t.replace(/[^\d]/g, '') })}
+                    onChangeText={(tVal) => setForm({ ...form, clienteId: tVal.replace(/[^\d]/g, '') })}
                     keyboardType="number-pad"
-                    placeholder="1"
+                    placeholder={t('motos.clientIdPh')}
                     placeholderTextColor={colors.muted}
                   />
 
-                  <Text style={s.fieldLabel}>Modelo Moto ID *</Text>
+                  <Text style={s.fieldLabel}>{t('motos.modelIdReq')}</Text>
                   <TextInput
                     style={s.input}
                     value={form.modeloMotoId}
-                    onChangeText={(t) => setForm({ ...form, modeloMotoId: t.replace(/[^\d]/g, '') })}
+                    onChangeText={(tVal) => setForm({ ...form, modeloMotoId: tVal.replace(/[^\d]/g, '') })}
                     keyboardType="number-pad"
-                    placeholder="2"
+                    placeholder={t('motos.modelIdPh')}
                     placeholderTextColor={colors.muted}
                   />
 
                   <View style={s.actionsRow}>
                     <TouchableOpacity onPress={() => setOpen(false)} style={s.btnGhost}>
-                      <Text style={s.btnGhostText}>Cancelar</Text>
+                      <Text style={s.btnGhostText}>{t('common.cancel')}</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       onPress={onSave}
                       disabled={saving}
                       style={[s.btnPrimary, saving && { opacity: 0.6 }]}
                     >
-                      {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>Salvar</Text>}
+                      {saving ? <ActivityIndicator color="#0b0b0b" /> : <Text style={s.btnPrimaryText}>{t('motos.save')}</Text>}
                     </TouchableOpacity>
                   </View>
                 </ScrollView>

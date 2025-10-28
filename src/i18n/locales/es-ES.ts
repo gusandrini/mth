@@ -130,4 +130,44 @@ export default {
     invalidTitle: 'Datos inválidos',
     notFoundTitle: 'No encontrado',
   },
+  motos: {
+    title: 'Motos en el Patio',
+    count: '{{count}} motos',
+
+    searchPlaceholder: 'Buscar por matrícula, modelo, fabricante...',
+    refresh: 'Actualizar lista',
+
+    empty: 'Aún no hay motos registradas',
+
+    new: 'Nueva moto',
+    newTitle: 'Nueva Moto',
+    editTitle: 'Editar Moto',
+    delete: 'Eliminar',
+    deleteTitle: 'Eliminar',
+    deleteMsg: '¿Eliminar la moto {{plate}}?',
+    deleteConfirm: 'Eliminar',
+    deleteError: 'No fue posible eliminarla.',
+
+    plate: 'Matrícula',
+    plateReq: 'Matrícula *',
+    platePh: 'ABC1234',
+    clientId: 'Cliente ID',
+    clientIdReq: 'Cliente ID *',
+    clientIdPh: '1',
+    modelIdReq: 'Modelo de Moto ID *',
+    modelIdPh: '2',
+
+    noModel: 'Sin modelo',
+
+    save: 'Guardar',
+    created: 'Moto registrada con éxito.',
+    updated: 'Moto actualizada con éxito.',
+    saveError: 'No fue posible guardar.',
+    loadError: 'No fue posible cargar los datos.',
+
+    validation: {
+      fillRequired: 'Completa todos los campos obligatorios.',
+    },
+  },
+
 };

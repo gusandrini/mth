@@ -130,4 +130,44 @@ export default {
     invalidTitle: 'Dados inválidos',
     notFoundTitle: 'Não encontrado',
   },
+  motos: {
+    title: 'Motos no Pátio',
+    count: '{{count}} motos',
+
+    searchPlaceholder: 'Buscar por placa, modelo, fabricante...',
+    refresh: 'Atualizar lista',
+
+    empty: 'Nenhuma moto cadastrada',
+
+    new: 'Nova moto',
+    newTitle: 'Nova Moto',
+    editTitle: 'Editar Moto',
+    delete: 'Excluir',
+    deleteTitle: 'Excluir',
+    deleteMsg: 'Excluir moto {{plate}}?',
+    deleteConfirm: 'Excluir',
+    deleteError: 'Não foi possível excluir.',
+
+    plate: 'Placa',
+    plateReq: 'Placa *',
+    platePh: 'ABC1234',
+    clientId: 'Cliente ID',
+    clientIdReq: 'Cliente ID *',
+    clientIdPh: '1',
+    modelIdReq: 'Modelo Moto ID *',
+    modelIdPh: '2',
+
+    noModel: 'Sem modelo',
+
+    save: 'Salvar',
+    created: 'Moto cadastrada com sucesso.',
+    updated: 'Moto atualizada com sucesso.',
+    saveError: 'Falha ao salvar.',
+    loadError: 'Não foi possível carregar os dados.',
+
+    validation: {
+      fillRequired: 'Preencha todos os campos obrigatórios.',
+    },
+  },
+
 };
