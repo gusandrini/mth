@@ -7,6 +7,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { getLoginStyles } from '@/styles/login';
 
+// ⬇️ importa o helper que agenda UMA notificação para 10s
+import { scheduleLoginNotification } from '@/Notifications';
+
 export default function LoginScreen() {
   const { colors } = useTheme();
   const s = useMemo(() => getLoginStyles(colors), [colors]);
@@ -29,10 +32,14 @@ export default function LoginScreen() {
 
       if (token) {
         await AsyncStorage.setItem('token', token);
-        // (opcional) salvar username se você usar em outro lugar:
+        // (opcional) salvar username:
         // await AsyncStorage.setItem('username', username);
 
         apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+        // ⬇️ agenda a notificação única para 10s após o login
+        // (sem await para não travar a navegação)
+        scheduleLoginNotification();
 
         Alert.alert('Login efetuado', 'Bem-vindo!');
         navigation.reset({ index: 0, routes: [{ name: 'Home' as never }] });
@@ -84,7 +91,6 @@ export default function LoginScreen() {
         <TouchableOpacity onPress={() => navigation.navigate('Register' as never)}>
           <Text style={s.registerLink}>Criar uma conta</Text>
         </TouchableOpacity>
-
       </View>
     </View>
   );
